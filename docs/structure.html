@@ -73,7 +73,7 @@
 
 <div class="header">
   <h1>bitcoin-report · Cấu trúc code</h1>
-  <p>Web dashboard + engine phân tích BTC · 2.975 dòng Python trong 25 module · 233 test</p>
+  <p>Web dashboard + engine phân tích BTC · 3.112 dòng Python trong 26 module · 259 test</p>
 </div>
 
 <div class="wrap">
@@ -441,7 +441,9 @@ Duyệt → cookie 7 ngày, trang khách tự vào dashboard</div>
             <td>Soạn text. Emoji, xuống dòng, canh cột — "frontend của kênh Telegram".</td><td class="n">101</td></tr>
 
         <tr><td><span class="tag t-svc">service</span></td><td class="mod">service/watch.py</td>
-            <td>Quét 3 mã + debounce. Trả <b>danh sách alert cần gửi</b>, không tự gửi Telegram — nhờ vậy test được debounce mà không mock gì.</td><td class="n">129</td></tr>
+            <td>Quét 3 mã + debounce. Trả <b>danh sách alert cần gửi</b>, không tự gửi Telegram — nhờ vậy test được debounce mà không mock gì.</td><td class="n">148</td></tr>
+        <tr><td><span class="tag t-svc">service</span></td><td class="mod">service/journal.py</td>
+            <td>Nhật ký tín hiệu mua/bán ra <code>data/signals.jsonl</code>. Giờ VN <code>+07:00</code>. Ghi <code>price</code> lúc bắn và <code>first_seen_at</code> — thiếu là sau không chấm điểm được tín hiệu.</td><td class="n">98</td></tr>
         <tr><td><span class="tag t-svc">service</span></td><td class="mod">service/report.py</td>
             <td><code>build_report()</code> → <code>(html, message, ctx)</code>. Dùng chung cho <code>apps/report.py</code> và server.</td><td class="n">46</td></tr>
 
@@ -530,7 +532,7 @@ save_state()             os.replace atomic</div>
 
 <!-- ─────────────── TEST ─────────────── -->
 <section>
-  <h2>Bộ test · 233 test, chạy offline</h2>
+  <h2>Bộ test · 259 test, chạy offline</h2>
   <div class="card scroll">
     <table>
       <thead><tr><th>File</th><th>Kiểm</th><th style="text-align:right">Dòng</th></tr></thead>

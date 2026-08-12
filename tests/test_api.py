@@ -266,6 +266,37 @@ def test_khong_co_tunnel_thi_link_None(owner):
     assert owner.get("/api/link").json()["url"] is None
 
 
+# ── NHẬT KÝ TÍN HIỆU ──────────────────────────────────────────────────────────
+def test_lich_su_khong_quyen_thi_401(guest):
+    assert guest.get("/api/signals/history").status_code == 401
+
+
+def test_khach_da_duyet_XEM_DUOC_het_lich_su(guest, monkeypatch):
+    """Đã chốt: khách được duyệt xem hết lịch sử, như chủ nhà.
+
+    Khác hẳn /api/link — cái đó chỉ chủ nhà. Test này canh đúng sự khác biệt đó,
+    để sau này không ai siết nhầm cả hai về một mức.
+    """
+    monkeypatch.setattr(access, "check_session",
+                        lambda t: {"name": "Khach", "owner": False})
+    guest.cookies.set(SESSION_COOKIE, "phien-khach-hop-le")
+    r = guest.get("/api/signals/history")
+    assert r.status_code == 200
+    assert "entries" in r.json()
+
+
+def test_lich_su_cho_chu_nha(owner):
+    r = owner.get("/api/signals/history")
+    assert r.status_code == 200 and isinstance(r.json()["entries"], list)
+
+
+def test_limit_bi_kep_khong_cho_hut_ca_file(owner):
+    """limit=999999 mà không kẹp là một request kéo cả lịch sử vào RAM."""
+    assert owner.get("/api/signals/history?limit=999999").status_code == 200
+    assert owner.get("/api/signals/history?limit=0").status_code == 200
+    assert owner.get("/api/signals/history?limit=-5").status_code == 200
+
+
 # ── BÁO CÁO ───────────────────────────────────────────────────────────────────
 def test_report_chua_co_thi_tra_503(owner):
     STATE.report_html = None

@@ -143,11 +143,36 @@ def test_khong_canh_bao_lai_khi_van_loi_tiep():
 
 # ── Hình dạng alert ──────────────────────────────────────────────────────────
 def test_alert_du_khoa():
+    """`prev` và `pending_since` là hợp đồng với journal.
+
+    Cố ý so bằng `==` chứ không phải `>=`: journal đọc thẳng mấy khoá này, đổi tên
+    hay bỏ đi là nhật ký mất trường mà không ai biết cho tới lúc xem lại lịch sử.
+    """
     _, scans = run({}, "NEUTRAL")
     a = scans[0][0]
-    assert set(a) == {"kind", "name", "symbol", "text", "snapshot"}
+    assert set(a) == {"kind", "name", "symbol", "text", "snapshot",
+                      "prev", "pending_since"}
     assert a["kind"] == "signal" and a["symbol"] == "BTCUSDT" and a["name"] == "BTC"
     assert a["snapshot"]["confluence"]["verdict"] == "NEUTRAL"
+
+
+def test_pending_since_dat_luc_bat_dau_cho_va_khong_bi_reset():
+    """Mốc thị trường THẬT SỰ đổi, khác lúc alert bắn ra.
+
+    Debounce giữ CONFIRM_SCANS lượt mới báo. Nếu pending_since bị ghi đè mỗi lượt
+    quét thì nó thành = thời điểm bắn, và nhật ký mất luôn khả năng nói độ trễ thật.
+    """
+    state, _ = run({}, "NEUTRAL")            # confirm lần đầu
+    entry = state["BTCUSDT"]
+
+    state, scans = run(state, "STRONG LONG")  # lượt 1: bắt đầu chờ
+    moc = state["BTCUSDT"]["pending_since"]
+    assert moc, "phải đặt mốc ngay lượt đầu thấy đổi"
+    assert scans[0] == [], "chưa đủ debounce thì chưa được bắn"
+
+    state, scans = run(state, "STRONG LONG")  # lượt 2: đủ, bắn
+    assert scans[0], "đủ debounce thì phải bắn"
+    assert scans[0][0]["pending_since"] == moc, "mốc phải giữ nguyên, không bị ghi đè"
 
 
 def test_scan_khong_tu_gui_telegram(monkeypatch):

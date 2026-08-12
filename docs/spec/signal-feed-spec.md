@@ -2,47 +2,18 @@
 
 Thực thi [plan](../plan/signal-feed-plan.md). Nhánh `feat/signal-dashboard`.
 
+**Đã thực thi xong 12/08/2026.** 259 test xanh, 0 vi phạm ranh giới tầng, đã chạy thật
+trên server và ghi được bản ghi đầu tiên.
+
+Hai chỗ từng nghi, đã kiểm và đều ổn: không có vòng import `watch → journal`; và
+`_run(lambda ...)` trong `scan_once()` chạy đúng — giờ có test gọi thật một lượt quét
+giả lập canh nó, không dựa vào suy luận.
+
+Một khoảng hở lúc chuyển đổi: mã nào đang dở một chu kỳ chờ lúc nâng cấp thì state cũ
+chưa có `pending_since`, nên bản ghi đầu tiên của mã đó có `first_seen_at` bằng `at`.
+Tự lành từ chu kỳ sau. Đã thấy thật với BTC ở lượt quét đầu.
+
 ---
-
-## 🔖 DỪNG GIỮA CHỪNG — đọc phần này trước khi làm tiếp
-
-Dừng ngày 12/08/2026. **Code đã viết xong nhưng CHƯA CHẠY TEST LẦN NÀO.** Đừng tin là
-nó chạy được cho tới khi `pytest` xanh.
-
-### Đã làm
-
-| File | Việc |
-|---|---|
-| `service/journal.py` | **Mới.** `append()` / `read()` / `count()`, JSONL, `TZ_VN = UTC+7`. `append()` tự lọc `kind != "signal"` |
-| `service/watch.py` | Thêm `_iso_vn()`; state có `pending_since`; alert mang thêm `prev` + `pending_since` |
-| `server/scheduler.py` | `scan_once()` gọi `journal.append(..., telegram_ok=)` sau khi gửi; SSE `signal` mang thêm `entries` |
-| `apps/monitor.py` | Cũng gọi `journal.append` |
-| `server/app.py` | `GET /api/signals/history?limit=&symbol=` |
-| `templates/dashboard.html` | Mục `<section class="signals">` |
-| `static/dashboard.css` | Style `.sig` `.tag` `.sig-detail` |
-| `static/dashboard.js` | `tailFeed()`, `renderFeed()`, `gioVN()`, `truoc()`, chèn realtime từ SSE, bấm để giãn xem text |
-
-### Còn phải làm
-
-1. **Chạy `pytest`** — chưa chạy lần nào kể từ khi sửa
-2. `tests/test_journal.py` — chưa viết. Danh sách test ở cuối file này
-3. Test `pending_since` trong `test_watch.py`
-4. Kiểm golden `text` không đổi (đã cố ý không đụng `format_monitor_alert`)
-5. Quét AST ranh giới tầng
-6. Nghiệm thu thật trên server đang chạy
-7. Cập nhật README / ARCHITECTURE / structure.html
-8. Commit, **hỏi trước khi push**
-
-### Hai chỗ nghi, phải kiểm trước tiên
-
-**Vòng import.** `service/watch.py` giờ import `from .journal import TZ_VN`, mà
-`journal` import `..config`. Chưa chạy nên chưa biết có vòng không — kiểm bằng
-`python -c "import btcreport.service.watch"`.
-
-**`_run(lambda ...)` trong `scheduler.scan_once()`.** Viết là
-`await _run(lambda a=alert, k=ok: journal.append(a, telegram_ok=bool(k)))`. Cách bind
-mặc định này để tránh bẫy closure trong vòng lặp, nhưng `_run(fn, *args)` gọi
-`run_in_executor(None, fn)` — cần xác nhận chạy đúng.
 
 ## Sáu quyết định đã chốt
 
