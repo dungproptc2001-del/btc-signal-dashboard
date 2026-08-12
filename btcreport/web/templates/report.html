@@ -1,0 +1,268 @@
+{#- Báo cáo BTC. Nhận context dict từ engine, không tính toán gì thêm. -#}
+{%- macro tf_card(tf) -%}
+<div class="tf-card {{ tf.verdict | verdict_class }}">
+  <div class="tf-label">{{ tf.label }}</div>
+  <div class="tf-verdict">{{ tf.verdict }}</div>
+  <div class="tf-score">Score: <span class="{{ tf.verdict | verdict_color_class }}">{{ tf.score | signed }}</span>/±{{ signal.max_score }}</div>
+  <div class="tf-tags">
+    <span class="tf-tag {{ tf.rsi | rsi_class }}">RSI {{ tf.rsi | num }}</span>
+    <span class="tf-tag {{ 'macd-bull' if tf.macd_bull else 'macd-bear' }}">{{ '▲ Bull' if tf.macd_bull else '▼ Bear' }}</span>
+  </div>
+</div>
+{%- endmacro -%}
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BTC Weekly Report – {{ generated_at | datetime_fmt }}</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+{{ inline_css }}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>&#8383; Bitcoin Weekly Analysis</h1>
+    <div class="subtitle">Phân tích kỹ thuật &amp; Dự báo xu hướng · Cập nhật: {{ generated_at | datetime_fmt }}</div>
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <span class="badge">&#128200; {{ symbol }}</span>
+    <span class="badge">&#128337; Tuần {{ week_label }}</span>
+    <span class="badge" style="color:#f59e0b">Nguồn: Binance API</span>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- KPI CARDS -->
+  <div class="grid-4">
+    <div class="card">
+      <div class="card-title">Giá hiện tại</div>
+      <div class="card-value">{{ price.last | usd }}</div>
+      <div class="card-sub {{ 'pos' if price.change_24h >= 0 else 'neg' }}">
+        {{ '▲' if price.change_24h >= 0 else '▼' }} {{ price.change_24h | abs | pct }} (24h)
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Tuần {{ week_label }}</div>
+      <div class="card-value {{ 'pos' if week.change_pct >= 0 else 'neg' }}">{{ week.change_pct | signed_pct }}</div>
+      <div class="card-sub">O: {{ week.open | usd }} → C: {{ week.close | usd }}</div>
+    </div>
+    <div class="card">
+      <div class="card-title">High / Low tuần</div>
+      <div class="card-value" style="color:#f59e0b">{{ week.high | usd }}</div>
+      <div class="card-sub" style="color:#ff5252">&#9660; {{ week.low | usd }}</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Volume 24h (USDT)</div>
+      <div class="card-value">{{ price.volume_24h | num(2) }}B</div>
+      <div class="card-sub">Fear &amp; Greed:
+        <span class="{{ fear_greed.value | fg_class }}" style="font-weight:700">{{ fear_greed.value or 'N/A' }} – {{ fear_greed.label }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- VERDICT -->
+  <div class="verdict-box {{ signal.verdict | verdict_class }}">
+    <div class="verdict-label">Khuyến nghị giao dịch</div>
+    <div class="verdict-main {{ signal.verdict | verdict_color_class }}">{{ signal.verdict }}</div>
+    <div class="verdict-action {{ signal.verdict | verdict_color_class }}">{{ signal.action }}</div>
+    <div style="margin-top:16px;font-size:.85rem;color:#94a3b8">
+      Score: <strong class="{{ signal.verdict | verdict_color_class }}">{{ signal.score | signed }}</strong> / ±{{ signal.max_score }}
+    </div>
+  </div>
+
+  <!-- MULTI-TIMEFRAME CONFLUENCE -->
+  <div class="card" style="margin-bottom:24px">
+    <div class="section-title">Multi-Timeframe Confluence (1W · 1D · 4H · 1H)</div>
+    <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
+      <div style="text-align:center;padding:20px 28px;border-right:1px solid #1e293b;min-width:170px">
+        <div style="font-size:.72rem;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Confluence</div>
+        <div class="{{ confluence.verdict | verdict_color_class }}" style="font-size:1.8rem;font-weight:900">{{ confluence.verdict }}</div>
+        <div style="margin-top:8px;font-size:.82rem;color:#94a3b8"><strong class="{{ confluence.verdict | verdict_color_class }}">{{ confluence.agree }}</strong>/4 đồng thuận</div>
+        <div style="margin-top:12px;font-size:.75rem;color:#475569">
+          R1: <span style="color:#ff5252">{{ levels_4h.R1 | usd }}</span> &nbsp;
+          S1: <span style="color:#4caf50">{{ levels_4h.S1 | usd }}</span>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;flex:1">
+        {% for tf in timeframes %}{{ tf_card(tf) }}{% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- 4H + 1H CHARTS -->
+  <div class="grid-2" style="margin-bottom:24px">
+    <div class="card">
+      <div class="section-title">Biểu đồ 4H ({{ chart.h4.close | length }} nến)</div>
+      <div class="chart-wrap"><canvas id="chart4h"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="section-title">Biểu đồ 1H ({{ chart.h1.close | length }} nến)</div>
+      <div class="chart-wrap"><canvas id="chart1h"></canvas></div>
+    </div>
+  </div>
+
+  <!-- MAIN CHART -->
+  <div class="card" style="margin-bottom:24px">
+    <div class="section-title">Biểu đồ giá {{ chart.daily.close | length }} ngày – {{ symbol }} (Bollinger Bands + MA)</div>
+    <div class="chart-wrap"><canvas id="priceChart"></canvas></div>
+  </div>
+
+  <!-- RSI + MACD -->
+  <div class="grid-2">
+    <div class="card">
+      <div class="section-title">RSI (14)</div>
+      <div class="chart-wrap-sm"><canvas id="rsiChart"></canvas></div>
+      <div style="margin-top:12px;display:flex;gap:16px;font-size:.82rem">
+        <span>Hiện tại: <strong class="{{ current.rsi | rsi_class }}">{{ current.rsi | num(1) }}</strong></span>
+        <span style="color:#475569">Overbought &gt; 70 | Oversold &lt; 30</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-title">MACD (12,26,9)</div>
+      <div class="chart-wrap-sm"><canvas id="macdChart"></canvas></div>
+      <div style="margin-top:12px;font-size:.82rem;color:#64748b">
+        {% set bull = current.macd > current.macd_signal %}
+        MACD: <strong class="{{ 'macd-bull' if bull else 'macd-bear' }}">{{ current.macd | num(1) }}</strong>
+        &nbsp;|&nbsp; Signal: <strong>{{ current.macd_signal | num(1) }}</strong>
+        &nbsp;|&nbsp; {{ '&#9650; Bullish' if bull else '&#9660; Bearish' }}
+      </div>
+    </div>
+  </div>
+
+  <!-- VOLUME -->
+  <div class="card" style="margin-bottom:24px">
+    <div class="section-title">Khối lượng giao dịch (Volume)</div>
+    <div class="chart-wrap-sm"><canvas id="volChart"></canvas></div>
+  </div>
+
+  <!-- SIGNALS + LEVELS -->
+  <div class="grid-3">
+    <div class="card">
+      <div class="section-title">Tín hiệu phân tích</div>
+      <ul class="reasons-list {{ signal.verdict | verdict_class }}">
+        {% for r in signal.reasons %}<li>{{ r }}</li>{% endfor %}
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Hỗ trợ &amp; Kháng cự</div>
+      <div class="level-row">
+        <span class="level-name">&#9650; Kháng cự 2</span>
+        <span class="level-val" style="color:#ff5252">{{ levels.R2 | usd }}</span>
+      </div>
+      <div class="level-row">
+        <span class="level-name">&#9650; Kháng cự 1</span>
+        <span class="level-val" style="color:#ff8f00">{{ levels.R1 | usd }}</span>
+      </div>
+      <div class="level-row" style="background:#1e293b;border-radius:6px;padding:8px 12px">
+        <span class="level-name" style="color:#f59e0b">&#9679; Pivot</span>
+        <span class="level-val" style="color:#f59e0b">{{ levels.pivot | usd }}</span>
+      </div>
+      <div class="level-row">
+        <span class="level-name">&#9660; Hỗ trợ 1</span>
+        <span class="level-val" style="color:#4caf50">{{ levels.S1 | usd }}</span>
+      </div>
+      <div class="level-row">
+        <span class="level-name">&#9660; Hỗ trợ 2</span>
+        <span class="level-val" style="color:#00838f">{{ levels.S2 | usd }}</span>
+      </div>
+      <div style="margin-top:16px">
+        <div style="font-size:.78rem;color:#64748b;margin-bottom:6px">Bollinger Bands</div>
+        <div style="font-size:.82rem">Upper: <strong style="color:#ef5350">{{ current.bb_upper | usd }}</strong></div>
+        <div style="font-size:.82rem">Lower: <strong style="color:#26c6da">{{ current.bb_lower | usd }}</strong></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Dự báo tuần tới</div>
+      <div style="font-size:.88rem;line-height:1.7;color:#cbd5e1">
+        {%- if signal.forecast == 'positive' %}
+        Tuần tới dự báo <strong>TÍCH CỰC</strong>. Các chỉ báo kỹ thuật nghiêng về phía người mua.
+        Vùng mục tiêu gần: <strong>{{ levels.R1 | usd }}</strong> – <strong>{{ levels.R2 | usd }}</strong>.
+        Nếu giữ được trên MA25, xu hướng tăng duy trì. Hỗ trợ chính tại <strong>{{ levels.S1 | usd }}</strong>.
+        {%- elif signal.forecast == 'negative' %}
+        Tuần tới dự báo <strong>TIÊU CỰC</strong>. Áp lực bán chiếm ưu thế, cần chú ý vùng hỗ trợ.
+        Mục tiêu downside: <strong>{{ levels.S1 | usd }}</strong> – <strong>{{ levels.S2 | usd }}</strong>.
+        Kháng cự gần nhất: <strong>{{ levels.R1 | usd }}</strong>.
+        {%- else %}
+        Tuần tới dự báo <strong>ĐI NGANG / TÍCH LŨY</strong>. {{ symbol }} có thể dao động trong vùng
+        <strong>{{ levels.S1 | usd }}</strong> – <strong>{{ levels.R1 | usd }}</strong>.
+        Chờ breakout rõ ràng trước khi vào lệnh.
+        {%- endif %}
+      </div>
+      <div style="margin-top:18px">
+        <div style="font-size:.78rem;color:#64748b;margin-bottom:8px">Confidence score</div>
+        <div class="progress">
+          <div class="progress-fill {{ signal.verdict | verdict_class }}" style="width:{{ signal.confidence }}%"></div>
+        </div>
+        <div style="font-size:.75rem;color:#475569;margin-top:4px">{{ signal.confidence }}%</div>
+      </div>
+      <div style="margin-top:18px">
+        <div class="section-title" style="margin-bottom:8px">Quản lý rủi ro (ATR)</div>
+        {%- if risk.sl %}
+        <div class="level-row"><span class="level-name">Entry</span>
+          <span class="level-val">{{ risk.entry | usd }}</span></div>
+        <div class="level-row"><span class="level-name">Stop Loss</span>
+          <span class="level-val" style="color:#ff5252">{{ risk.sl | usd }}</span></div>
+        <div class="level-row"><span class="level-name">Take Profit</span>
+          <span class="level-val" style="color:#69f0ae">{{ risk.tp | usd }}</span></div>
+        <div class="level-row"><span class="level-name">ATR(14) &middot; R:R</span>
+          <span class="level-val">{{ risk.atr | usd }} &middot; 1:{{ risk.rr | num }}</span></div>
+        {%- else %}
+        <div class="risk-empty">
+          Chưa có hướng rõ ràng (NEUTRAL) &ndash; không đề xuất entry.
+          Chờ tín hiệu xác nhận trước khi vào lệnh.
+        </div>
+        {%- endif %}
+      </div>
+      <div style="margin-top:16px;padding:12px;background:#1e293b;border-radius:8px;font-size:.8rem;color:#64748b;line-height:1.6">
+        &#9888; Thông tin chỉ mang tính tham khảo. Thị trường crypto biến động cao,
+        luôn quản lý rủi ro trước khi vào lệnh.
+      </div>
+    </div>
+  </div>
+
+  <!-- OHLCV TABLE -->
+  <div class="card" style="margin-bottom:24px">
+    <div class="section-title">Dữ liệu OHLCV – {{ ohlcv | length }} ngày gần nhất</div>
+    <div style="overflow-x:auto">
+    <table>
+      <thead>
+        <tr><th>Ngày</th><th>Open</th><th>High</th><th>Low</th><th>Close</th><th>Thay đổi</th><th>Volume</th></tr>
+      </thead>
+      <tbody>
+        {%- for row in ohlcv %}
+        <tr>
+          <td>{{ row.date }}</td>
+          <td>{{ row.open | usd }}</td>
+          <td class="hi">{{ row.high | usd }}</td>
+          <td class="lo">{{ row.low | usd }}</td>
+          <td><strong>{{ row.close | usd }}</strong></td>
+          <td><span class="pill {{ row.up | pill_class }}">{{ row.change_pct | signed_pct }}</span></td>
+          <td class="muted">{{ row.volume | num }}</td>
+        </tr>
+        {%- endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<div class="footer">
+  Dữ liệu thực tế từ Binance API · Cập nhật lúc {{ generated_at | datetime_fmt }} · {{ symbol }} Spot
+</div>
+
+<script>
+window.REPORT_DATA = {{ chart_json }};
+</script>
+<script>
+{{ inline_js }}
+</script>
+</body>
+</html>

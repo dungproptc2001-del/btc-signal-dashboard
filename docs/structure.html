@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>bitcoin-report · Cấu trúc code</title>
+<style>
+  :root{
+    --bg:#0a0e1a; --card:#0f172a; --line:#1e293b; --line2:#334155;
+    --tx:#e2e8f0; --mut:#64748b; --dim:#475569;
+    --amber:#f59e0b; --blue:#38bdf8; --green:#34d399; --pink:#f472b6;
+    --purple:#a78bfa; --gray:#94a3b8; --red:#ff5252;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--tx);font-family:'Segoe UI',system-ui,sans-serif;
+       line-height:1.6;min-height:100vh}
+  .header{background:linear-gradient(135deg,#1a1f35,#0d1117);padding:28px 32px;
+          border-bottom:1px solid var(--line)}
+  .header h1{font-size:1.7rem;font-weight:800;color:var(--amber);letter-spacing:.3px}
+  .header p{font-size:.88rem;color:var(--mut);margin-top:6px}
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 20px 60px}
+  section{margin-bottom:40px}
+  h2{font-size:.74rem;color:var(--dim);text-transform:uppercase;letter-spacing:1.6px;
+     margin-bottom:16px;display:flex;align-items:center;gap:10px}
+  h2::after{content:'';flex:1;height:1px;background:var(--line)}
+  h3{font-size:.95rem;color:var(--tx);margin:22px 0 10px;font-weight:700}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px}
+  .scroll{overflow-x:auto}
+  svg{display:block;min-width:760px;max-width:100%;height:auto}
+  p{font-size:.9rem;color:#cbd5e1}
+  p+p{margin-top:10px}
+  .note{font-size:.85rem;color:var(--mut);margin-top:14px;padding-left:12px;
+        border-left:2px solid var(--line2)}
+  code{font-family:Consolas,'Courier New',monospace;font-size:.85em;
+       background:#1e293b;border-radius:4px;padding:1px 6px;color:#cbd5e1}
+  table{width:100%;border-collapse:collapse;font-size:.85rem}
+  th{background:var(--card);color:var(--mut);text-align:left;padding:10px 12px;
+     border-bottom:1px solid var(--line);font-size:.7rem;text-transform:uppercase;
+     letter-spacing:.6px;white-space:nowrap}
+  td{padding:9px 12px;border-bottom:1px solid #0f172a;color:#cbd5e1;vertical-align:top}
+  tr:hover td{background:#0f172a99}
+  td.mod{font-family:Consolas,monospace;white-space:nowrap;color:var(--tx)}
+  td.n{text-align:right;color:var(--dim);font-variant-numeric:tabular-nums}
+  .tag{display:inline-block;border-radius:5px;padding:2px 8px;font-size:.68rem;
+       font-weight:700;letter-spacing:.4px;white-space:nowrap}
+  .t-src{background:#38bdf822;color:var(--blue);border:1px solid #38bdf844}
+  .t-eng{background:#34d39922;color:var(--green);border:1px solid #34d39944}
+  .t-web{background:#f472b622;color:var(--pink);border:1px solid #f472b644}
+  .t-not{background:#a78bfa22;color:var(--purple);border:1px solid #a78bfa44}
+  .t-app{background:#f59e0b22;color:var(--amber);border:1px solid #f59e0b44}
+  .t-cfg{background:#94a3b822;color:var(--gray);border:1px solid #94a3b844}
+  .t-svc{background:#c084fc22;color:#c084fc;border:1px solid #c084fc44}
+  .t-srv{background:#fbbf2422;color:#fbbf24;border:1px solid #fbbf2444}
+  .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:18px}
+  .rule{display:flex;gap:12px;align-items:flex-start;padding:11px 0;
+        border-bottom:1px solid var(--line)}
+  .rule:last-child{border-bottom:none}
+  .rule .mark{font-size:1rem;line-height:1.4;flex-shrink:0}
+  .ok{color:var(--green)} .no{color:var(--red)}
+  .rule b{color:var(--tx);font-weight:600}
+  .rule span{font-size:.87rem;color:var(--mut)}
+  .verified{display:inline-flex;align-items:center;gap:8px;background:#34d39914;
+            border:1px solid #34d39944;border-radius:8px;padding:9px 14px;
+            font-size:.83rem;color:var(--green);margin-top:16px}
+  .flow{font-family:Consolas,monospace;font-size:.82rem;color:#cbd5e1;
+        white-space:pre;line-height:1.75}
+  .footer{text-align:center;padding:30px;color:#334155;font-size:.78rem;
+          border-top:1px solid var(--line)}
+  @media(max-width:600px){.header h1{font-size:1.3rem}.wrap{padding:20px 14px 40px}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>bitcoin-report · Cấu trúc code</h1>
+  <p>Web dashboard + engine phân tích BTC · 2.625 dòng Python trong 27 module · 196 test</p>
+</div>
+
+<div class="wrap">
+
+<!-- ─────────────── LUỒNG DỮ LIỆU ─────────────── -->
+<section>
+  <h2>Luồng dữ liệu</h2>
+  <div class="card scroll">
+    <svg viewBox="0 0 1100 260" role="img" aria-label="Sơ đồ luồng dữ liệu">
+      <defs>
+        <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5"
+                markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+        </marker>
+        <style>
+          .bx{rx:10;ry:10;stroke-width:1.5}
+          .lb{font:700 13px 'Segoe UI',sans-serif;text-anchor:middle}
+          .sb{font:11px Consolas,monospace;text-anchor:middle;fill:#64748b}
+          .ln{stroke:#475569;stroke-width:1.6;fill:none;marker-end:url(#ar)}
+          .cap{font:600 10px 'Segoe UI',sans-serif;text-anchor:middle;fill:#64748b;
+               letter-spacing:.6px}
+        </style>
+      </defs>
+
+      <!-- API ngoài -->
+      <rect class="bx" x="10"  y="86" width="118" height="62" fill="#1e293b" stroke="#334155"/>
+      <text class="lb" x="69" y="112" fill="#94a3b8">API ngoài</text>
+      <text class="sb" x="69" y="130">Binance · F&amp;G</text>
+
+      <!-- sources -->
+      <rect class="bx" x="176" y="86" width="140" height="62" fill="#38bdf815" stroke="#38bdf8"/>
+      <text class="lb" x="246" y="112" fill="#38bdf8">sources/</text>
+      <text class="sb" x="246" y="130">fetch + retry</text>
+
+      <!-- engine -->
+      <rect class="bx" x="364" y="86" width="150" height="62" fill="#34d39915" stroke="#34d399"/>
+      <text class="lb" x="439" y="112" fill="#34d399">engine/</text>
+      <text class="sb" x="439" y="130">tính toán thuần</text>
+
+      <!-- context -->
+      <rect class="bx" x="562" y="80" width="152" height="74" fill="#f59e0b15" stroke="#f59e0b"
+            stroke-dasharray="5 3"/>
+      <text class="lb" x="638" y="106" fill="#f59e0b">context dict</text>
+      <text class="sb" x="638" y="124">số + chuỗi</text>
+      <text class="sb" x="638" y="140">không HTML</text>
+
+      <!-- web -->
+      <rect class="bx" x="768" y="6" width="140" height="56" fill="#f472b615" stroke="#f472b6"/>
+      <text class="lb" x="838" y="30" fill="#f472b6">web/</text>
+      <text class="sb" x="838" y="48">Jinja2 render</text>
+
+      <!-- notify -->
+      <rect class="bx" x="768" y="90" width="140" height="56" fill="#a78bfa15" stroke="#a78bfa"/>
+      <text class="lb" x="838" y="114" fill="#a78bfa">notify/</text>
+      <text class="sb" x="838" y="132">soạn text</text>
+
+      <!-- server -->
+      <rect class="bx" x="768" y="174" width="140" height="56" fill="#fbbf2415" stroke="#fbbf24"/>
+      <text class="lb" x="838" y="198" fill="#fbbf24">server/</text>
+      <text class="sb" x="838" y="216">SSE + API</text>
+
+      <!-- outputs -->
+      <rect class="bx" x="956" y="6" width="134" height="56" fill="#1e293b" stroke="#334155"/>
+      <text class="lb" x="1023" y="30" fill="#94a3b8">HTML</text>
+      <text class="sb" x="1023" y="48">tự chứa</text>
+
+      <rect class="bx" x="956" y="90" width="134" height="56" fill="#1e293b" stroke="#334155"/>
+      <text class="lb" x="1023" y="114" fill="#94a3b8">Telegram</text>
+      <text class="sb" x="1023" y="132">tin nhắn</text>
+
+      <rect class="bx" x="956" y="174" width="134" height="56" fill="#1e293b" stroke="#334155"/>
+      <text class="lb" x="1023" y="198" fill="#94a3b8">Dashboard</text>
+      <text class="sb" x="1023" y="216">trực tiếp</text>
+
+      <!-- mũi tên -->
+      <path class="ln" d="M132 117 H172"/>
+      <path class="ln" d="M320 117 H360"/>
+      <path class="ln" d="M518 117 H558"/>
+      <path class="ln" d="M718 104 C744 104, 744 34, 764 34"/>
+      <path class="ln" d="M718 117 H764"/>
+      <path class="ln" d="M718 130 C744 130, 744 202, 764 202"/>
+      <path class="ln" d="M912 34  H952"/>
+      <path class="ln" d="M912 118 H952"/>
+      <path class="ln" d="M912 202 H952"/>
+
+      <text class="cap" x="246" y="170">nến thô</text>
+      <text class="cap" x="439" y="170">chỉ báo · verdict</text>
+    </svg>
+    <p class="note">
+      Engine trả về <b>một</b> context dict. HTML, Telegram và dashboard chỉ là ba cách
+      trình bày khác nhau của cùng cái dict đó. Nhờ ranh giới này mà khi thêm web server,
+      bốn tầng bên trái <b>không phải sửa một dòng nào</b> — chỉ thêm người gọi mới.
+    </p>
+  </div>
+</section>
+
+<!-- ─────────────── BA NHỊP CỦA SERVER ─────────────── -->
+<section>
+  <h2>Ba nhịp chạy nền của server</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3 style="margin-top:0;color:var(--amber)">Một process, ba chu kỳ</h3>
+      <div class="flow">apps/server.py
+  ↓
+keepalive.hold()      giữ máy thức
+tunnel.start()        → *.trycloudflare.com
+scheduler.start()     3 task asyncio
+bot.poll_loop()       long-poll Telegram
+uvicorn.serve()
+  ↓
+30 giây → ticker × 3   → publish("price")
+15 phút → watch.scan   → Telegram + SSE
+4 tiếng → report.build → file + Telegram</div>
+      <p class="note">
+        Mọi call chặn đẩy qua threadpool. Mỗi vòng bọc try/except riêng — một lỗi
+        không giết cả nhịp.
+      </p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0;color:var(--purple)">Vì sao cache trong RAM</h3>
+      <p>
+        Mở trang <b>không</b> kích hoạt fetch. Scheduler cập nhật cache theo nhịp,
+        mọi request chỉ đọc từ RAM. 100 lượt xem cũng không thêm một request nào
+        tới Binance.
+      </p>
+      <p style="margin-top:12px">
+        Trình duyệt nối <code>/events</code> (SSE) và nhận đẩy, không polling.
+        Mất kết nối thì tự nối lại sau 5 giây, chấm trạng thái chuyển đỏ.
+      </p>
+      <p class="note">
+        <code>STATE.public()</code> là cửa duy nhất dữ liệu ra web — có test dò
+        <code>OWNER_KEY</code>, bot token và chuỗi <code>token</code> trong đó.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────── QUYỀN TRUY CẬP ─────────────── -->
+<section>
+  <h2>Quyền truy cập · bốn chốt chặn</h2>
+  <div class="card">
+    <div class="flow">Khách mở URL
+  ↓ không có cookie hợp lệ
+Trang xin quyền: TÊN + LỜI NHẮN (≥ 10 ký tự)
+  ↓ POST /access/request      ← ① chặn spam TẠI ĐÂY, trước khi bot nhắn
+Telegram cho chủ nhà + 2 nút  [✅ Duyệt]  [❌ Từ chối]
+  ↓ khách poll /access/status mỗi 3 giây
+Chủ nhà bấm nút → callback_query
+  ↓ ② access.is_owner(chat_id)?
+Duyệt → cookie 7 ngày, trang khách tự vào dashboard</div>
+  </div>
+
+  <div class="grid2" style="margin-top:18px">
+    <div class="card">
+      <h3 style="margin-top:0">① Chặn spam trước khi gửi</h3>
+      <p>
+        3 yêu cầu / IP / giờ, 20 / giờ toàn cục. Nếu chặn <i>sau</i> khi gửi thì bất kỳ ai
+        cũng làm ngập điện thoại chủ nhà. Có test canh đúng thứ tự này.
+      </p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">② Chốt <code>chat_id</code></h3>
+      <p>
+        Bot công khai, ai cũng nhắn được. Không kiểm thì người lạ chỉ cần gửi đúng
+        callback data là tự duyệt cho chính mình. Duyệt, từ chối, thu hồi,
+        <code>/stop</code> — tất cả qua đúng một hàm.
+      </p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">③ Nhận diện chủ nhà hai lớp</h3>
+      <p>
+        Cloudflared kết nối vào server từ chính <code>127.0.0.1</code> — chỉ nhìn địa chỉ
+        thì <b>mọi khách trên internet đều thành chủ nhà</b>. Nên loại bỏ ngay request
+        mang header proxy <i>rồi</i> mới xét loopback.
+      </p>
+      <p class="note">
+        uvicorn đã bật sẵn ProxyHeadersMiddleware và Cloudflare cũng chặn header giả,
+        nhưng ranh giới quyền không dựa vào mặc định ngầm của thư viện bên thứ ba.
+      </p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">④ Cửa sau của chủ nhà</h3>
+      <p>
+        <code>/login?key=&lt;OWNER_KEY&gt;</code> — dùng khi Telegram hỏng hoặc vào từ máy
+        khác. Không phụ thuộc bot. Đặt <code>OWNER_KEY</code> cố định trong
+        <code>.env</code>, không thì mỗi lần khởi động sinh khoá mới.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────── TẦNG PHỤ THUỘC ─────────────── -->
+<section>
+  <h2>Tầng phụ thuộc</h2>
+  <div class="card scroll">
+    <svg viewBox="0 0 1100 330" role="img" aria-label="Sơ đồ tầng phụ thuộc">
+      <defs>
+        <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5"
+                markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+        </marker>
+        <style>
+          .bx2{rx:10;ry:10;stroke-width:1.5}
+          .lb2{font:700 13px 'Segoe UI',sans-serif;text-anchor:middle}
+          .sb2{font:11px Consolas,monospace;text-anchor:middle;fill:#64748b}
+          .ln2{stroke:#475569;stroke-width:1.5;fill:none;marker-end:url(#ar2)}
+          .ln3{stroke:#334155;stroke-width:1.2;fill:none;stroke-dasharray:4 4;
+               marker-end:url(#ar2)}
+        </style>
+      </defs>
+
+      <!-- apps -->
+      <rect class="bx2" x="330" y="10" width="440" height="52" fill="#f59e0b15" stroke="#f59e0b"/>
+      <text class="lb2" x="550" y="32" fill="#f59e0b">apps/</text>
+      <text class="sb2" x="550" y="50">server.py · report.py · monitor.py — vòng đời process</text>
+
+      <!-- server + service -->
+      <rect class="bx2" x="600" y="98" width="440" height="52" fill="#fbbf2415" stroke="#fbbf24"/>
+      <text class="lb2" x="820" y="120" fill="#fbbf24">server/</text>
+      <text class="sb2" x="820" y="138">app · state · scheduler · access · bot · keepalive · tunnel</text>
+
+      <rect class="bx2" x="330" y="176" width="440" height="52" fill="#c084fc15" stroke="#c084fc"/>
+      <text class="lb2" x="550" y="198" fill="#c084fc">service/</text>
+      <text class="sb2" x="550" y="216">report · watch — orchestration dùng chung</text>
+
+      <!-- hàng đáy -->
+      <rect class="bx2" x="20"  y="254" width="180" height="52" fill="#38bdf815" stroke="#38bdf8"/>
+      <text class="lb2" x="110" y="276" fill="#38bdf8">sources/</text>
+      <text class="sb2" x="110" y="294">http · binance</text>
+
+      <rect class="bx2" x="228" y="254" width="180" height="52" fill="#34d39915" stroke="#34d399"/>
+      <text class="lb2" x="318" y="276" fill="#34d399">engine/</text>
+      <text class="sb2" x="318" y="294">indicators · signals</text>
+
+      <rect class="bx2" x="436" y="254" width="180" height="52" fill="#f472b615" stroke="#f472b6"/>
+      <text class="lb2" x="526" y="276" fill="#f472b6">web/</text>
+      <text class="sb2" x="526" y="294">renderer · filters</text>
+
+      <rect class="bx2" x="644" y="254" width="180" height="52" fill="#a78bfa15" stroke="#a78bfa"/>
+      <text class="lb2" x="734" y="276" fill="#a78bfa">notify/</text>
+      <text class="sb2" x="734" y="294">telegram · messages</text>
+
+      <rect class="bx2" x="852" y="254" width="188" height="52" fill="#94a3b815" stroke="#94a3b8"/>
+      <text class="lb2" x="946" y="276" fill="#94a3b8">config.py</text>
+      <text class="sb2" x="946" y="294">hằng số · secret</text>
+
+      <!-- apps -> server, service -->
+      <path class="ln2" d="M700 66 C760 76, 800 84, 815 94"/>
+      <path class="ln2" d="M480 66 C480 110, 520 150, 540 172"/>
+      <!-- server -> service -->
+      <path class="ln2" d="M790 154 C740 164, 700 170, 680 172"/>
+      <!-- service -> 4 tầng đáy -->
+      <path class="ln2" d="M420 232 C300 240, 180 244, 130 250"/>
+      <path class="ln2" d="M490 232 C440 240, 360 244, 330 250"/>
+      <path class="ln2" d="M580 232 C560 240, 535 244, 528 250"/>
+      <path class="ln2" d="M660 232 C700 240, 725 244, 734 250"/>
+
+      <text class="cap" x="550" y="86" style="font:600 10px 'Segoe UI';fill:#64748b;
+            text-anchor:middle;letter-spacing:.6px">mũi tên chỉ đi XUỐNG · tầng dưới không biết tầng trên tồn tại</text>
+      <text class="cap" x="946" y="326" style="font:600 10px 'Segoe UI';fill:#475569;
+            text-anchor:middle;letter-spacing:.6px">mọi tầng đọc config</text>
+    </svg>
+    <p class="note">
+      <code>sources/</code>, <code>engine/</code>, <code>web/</code> và <code>notify/</code>
+      <b>không</b> import lẫn nhau. <code>engine/</code> không biết <code>server/</code>
+      tồn tại. Khi thêm web server, bốn hộp hàng đáy không phải sửa gì.
+    </p>
+  </div>
+</section>
+
+<!-- ─────────────── LUẬT RANH GIỚI ─────────────── -->
+<section>
+  <h2>Luật ranh giới</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3 style="margin-top:0">Engine bị cấm gì</h3>
+      <div class="rule"><span class="mark no">✕</span><div>
+        <b>import requests</b><br><span>Engine nhận nến, không tự đi lấy. Nhờ vậy test chạy offline.</span>
+      </div></div>
+      <div class="rule"><span class="mark no">✕</span><div>
+        <b>Chuỗi HTML</b><br><span>Không <code>&lt;div&gt;</code>, không <code>&lt;span&gt;</code>.</span>
+      </div></div>
+      <div class="rule"><span class="mark no">✕</span><div>
+        <b>Mã màu, emoji</b><br><span>Trả <code>"LONG"</code>, không trả <code>"#00c853"</code>.</span>
+      </div></div>
+      <div class="rule"><span class="mark ok">✓</span><div>
+        <b>Số và chuỗi định danh</b><br><span>verdict, score, reasons, mức giá.</span>
+      </div></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0">Trình bày bị cấm gì</h3>
+      <div class="rule"><span class="mark no">✕</span><div>
+        <b>Gọi indicator</b><br><span>Con số phải có sẵn trong context.</span>
+      </div></div>
+      <div class="rule"><span class="mark no">✕</span><div>
+        <b>So sánh ngưỡng</b><br><span>Không tự quyết LONG hay SHORT.</span>
+      </div></div>
+      <div class="rule"><span class="mark ok">✓</span><div>
+        <b>Định dạng, tô màu, gắn icon</b><br><span><code>filters.py</code> map verdict → class CSS.</span>
+      </div></div>
+      <div class="rule"><span class="mark ok">✓</span><div>
+        <b>Quyết định bố cục</b><br><span>Template toàn quyền sắp xếp.</span>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="verified">
+    <span>✓</span>
+    <span>Kiểm bằng máy: quét AST toàn bộ import qua 6 tầng — <b>0 vi phạm</b>.
+    Ngoài ra <code>test_context.py</code> fail nếu context rò rỉ HTML hoặc mã hex,
+    <code>test_signals.py</code> fail nếu <code>generate_signal</code> trả về màu.</span>
+  </div>
+</section>
+
+<!-- ─────────────── BẢNG MODULE ─────────────── -->
+<section>
+  <h2>Từng module</h2>
+  <div class="card scroll">
+    <table>
+      <thead>
+        <tr><th>Tầng</th><th>File</th><th>Trách nhiệm</th><th style="text-align:right">Dòng</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="tag t-cfg">config</span></td><td class="mod">btcreport/config.py</td>
+            <td>Đọc <code>.env</code>, đường dẫn, mọi hằng số. Nơi duy nhất định nghĩa <code>MAX_SCORE</code>.</td><td class="n">69</td></tr>
+
+        <tr><td><span class="tag t-src">sources</span></td><td class="mod">sources/http.py</td>
+            <td>Cửa duy nhất ra internet. Retry 4 lần, backoff mũ, tôn trọng <code>Retry-After</code>. 429/5xx retry, 4xx khác raise ngay.</td><td class="n">40</td></tr>
+        <tr><td><span class="tag t-src">sources</span></td><td class="mod">sources/binance.py</td>
+            <td>Nến và ticker. <code>parse_klines()</code> đổi mảng thô thành dict có tên.</td><td class="n">40</td></tr>
+        <tr><td><span class="tag t-src">sources</span></td><td class="mod">sources/feargreed.py</td>
+            <td>Chỉ số tâm lý. Nuốt lỗi, trả <code>(None, "N/A")</code> — thiếu nó báo cáo vẫn dùng được.</td><td class="n">14</td></tr>
+
+        <tr><td><span class="tag t-eng">engine</span></td><td class="mod">engine/indicators.py</td>
+            <td>SMA, EMA, RSI, MACD, Bollinger, ATR. Series luôn cùng độ dài input, phần thiếu điền <code>None</code>.</td><td class="n">102</td></tr>
+        <tr><td><span class="tag t-eng">engine</span></td><td class="mod">engine/signals.py</td>
+            <td><code>generate_signal()</code> chấm điểm ±7 · <code>confluence()</code> gộp 4 khung — bản duy nhất, trước đây bị copy 3 chỗ.</td><td class="n">108</td></tr>
+        <tr><td><span class="tag t-eng">engine</span></td><td class="mod">engine/levels.py</td>
+            <td>Pivot hỗ trợ/kháng cự · SL/TP theo ATR (1.5×/3×, R:R 1:2). NEUTRAL trả <code>sl=None</code>.</td><td class="n">38</td></tr>
+        <tr><td><span class="tag t-eng">engine</span></td><td class="mod">engine/analysis.py</td>
+            <td><code>build_context()</code> gom tất cả thành context dict. <b>Không fetch gì</b> — nhận nến có sẵn nên test nạp fixtures là chạy.</td><td class="n">186</td></tr>
+
+        <tr><td><span class="tag t-web">web</span></td><td class="mod">web/renderer.py</td>
+            <td><code>render_report(ctx) → str</code>. Inline CSS/JS, làm tròn series. <code>StrictUndefined</code>: thiếu biến là nổ ngay.</td><td class="n">63</td></tr>
+        <tr><td><span class="tag t-web">web</span></td><td class="mod">web/filters.py</td>
+            <td>Filter Jinja: <code>usd</code>, <code>pct</code>, <code>verdict_class</code>… Bảng màu nằm ở đây.</td><td class="n">97</td></tr>
+        <tr><td><span class="tag t-web">web</span></td><td class="mod">web/templates/report.html</td>
+            <td>Markup. Macro <code>tf_card</code>, vòng lặp reasons và OHLCV.</td><td class="n">268</td></tr>
+        <tr><td><span class="tag t-web">web</span></td><td class="mod">web/static/styles.css</td>
+            <td>Kiểu dáng. Class <code>v-long</code>/<code>v-short</code> quyết định màu verdict.</td><td class="n">63</td></tr>
+        <tr><td><span class="tag t-web">web</span></td><td class="mod">web/static/charts.js</td>
+            <td>Cấu hình Chart.js. Đọc dữ liệu từ <code>window.REPORT_DATA</code> — không chứa số liệu.</td><td class="n">173</td></tr>
+
+        <tr><td><span class="tag t-not">notify</span></td><td class="mod">notify/telegram.py</td>
+            <td>Gửi tin, retry 3 lần. Chưa cấu hình token thì trả <code>False</code>, không raise.</td><td class="n">32</td></tr>
+        <tr><td><span class="tag t-not">notify</span></td><td class="mod">notify/messages.py</td>
+            <td>Soạn text. Emoji, xuống dòng, canh cột — "frontend của kênh Telegram".</td><td class="n">101</td></tr>
+
+        <tr><td><span class="tag t-svc">service</span></td><td class="mod">service/watch.py</td>
+            <td>Quét 3 mã + debounce. Trả <b>danh sách alert cần gửi</b>, không tự gửi Telegram — nhờ vậy test được debounce mà không mock gì.</td><td class="n">129</td></tr>
+        <tr><td><span class="tag t-svc">service</span></td><td class="mod">service/report.py</td>
+            <td><code>build_report()</code> → <code>(html, message, ctx)</code>. Dùng chung cho <code>apps/report.py</code> và server.</td><td class="n">46</td></tr>
+
+        <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/app.py</td>
+            <td>FastAPI: route, middleware gác cửa, SSE, luồng xin quyền. Nhận diện chủ nhà hai lớp.</td><td class="n">214</td></tr>
+        <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/access.py</td>
+            <td>Phiên 7 ngày, yêu cầu truy cập, duyệt/từ chối/thu hồi, chống spam. Mọi đặc quyền qua <code>is_owner()</code>.</td><td class="n">270</td></tr>
+        <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/bot.py</td>
+            <td>Long-poll <code>getUpdates</code>: nút Duyệt/Từ chối + lệnh <code>/status /url /pause /scan /guests /stop</code>.</td><td class="n">299</td></tr>
+        <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/scheduler.py</td>
+            <td>Ba nhịp nền: giá 30 giây, quét 15 phút, báo cáo 4 tiếng. Call chặn đẩy qua threadpool.</td><td class="n">171</td></tr>
+        <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/state.py</td>
+            <td>Cache RAM + kênh SSE. <code>public()</code> là cửa duy nhất dữ liệu ra web.</td><td class="n">129</td></tr>
+        <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/tunnel.py</td>
+            <td>Mở Cloudflare quick tunnel, bắt URL từ output. Tunnel hỏng không được làm sập server.</td><td class="n">98</td></tr>
+        <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/keepalive.py</td>
+            <td><code>SetThreadExecutionState</code> — giữ máy thức đúng lúc server chạy, không sửa power plan.</td><td class="n">67</td></tr>
+        <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/static/dashboard.js</td>
+            <td>Nhận SSE, nhấp nháy giá khi đổi, đếm ngược lần quét, tự nối lại khi đứt.</td><td class="n">175</td></tr>
+        <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/static/dashboard.css</td>
+            <td>Kiểu dáng dashboard + trang xin quyền.</td><td class="n">113</td></tr>
+        <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/templates/*.html</td>
+            <td><code>dashboard.html</code> · <code>request_access.html</code> (form + poll trạng thái).</td><td class="n">155</td></tr>
+
+        <tr><td><span class="tag t-app">apps</span></td><td class="mod">apps/server.py</td>
+            <td>keepalive → tunnel → scheduler → bot → uvicorn. Tắt thì ngược lại, dọn sạch.</td><td class="n">151</td></tr>
+        <tr><td><span class="tag t-app">apps</span></td><td class="mod">apps/report.py</td>
+            <td>Gọi <code>service/report</code>, ghi file, Telegram, mở browser.</td><td class="n">50</td></tr>
+        <tr><td><span class="tag t-app">apps</span></td><td class="mod">apps/monitor.py</td>
+            <td>Vòng lặp 15 phút gọi <code>service/watch</code>, gửi alert. PID file + state atomic.</td><td class="n">90</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ─────────────── HAI LUỒNG CHẠY ─────────────── -->
+<section>
+  <h2>Hai luồng chạy</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3 style="margin-top:0;color:var(--amber)">Report · 4 tiếng/lần</h3>
+      <div class="flow">get_thu_range()          khoảng thứ 5 → thứ 5
+  ↓
+fetch_klines × 4         1W 1D 4H 1H
+fetch_ticker + fear_greed
+  ↓
+build_context(...)       → context dict
+  ↓
+  ├─ render_report()     → output/btc_report.html
+  └─ format_report_..()  → send_telegram()</div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0;color:var(--purple)">Monitor · 15 phút/lần</h3>
+      <div class="flow">với mỗi mã BTC / ETH / XAU:
+  get_snapshot(symbol)
+    ↓ lỗi  → consec_fails += 1
+             chạm 4 lần → cảnh báo
+             GIỮ NGUYÊN state cũ
+    ↓ ok
+  confluence == state đã confirm?
+    ↓ giống → xoá pending
+    ↓ khác  → pending_count += 1
+       chưa đủ 2 lần → chỉ ghi, im lặng
+       đủ rồi        → alert + confirm
+  ↓
+save_state()             os.replace atomic</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:18px">
+    <h3 style="margin-top:0">Vì sao phải debounce</h3>
+    <p>
+      Score dao động quanh ngưỡng ±3 ở khung 1H rất hay lật qua lật lại. Không debounce
+      thì mỗi lần lật là một tin Telegram — đọc vài hôm là bắt đầu bỏ qua hết, cảnh báo
+      mất sạch giá trị. Confluence mới phải giữ được <b>hai lần quét liên tiếp</b>
+      (30 phút) mới báo.
+    </p>
+    <p class="note">
+      Có test mô phỏng cú lật giả <code>NEUTRAL → LONG → NEUTRAL</code>: kết quả 0 alert.
+    </p>
+  </div>
+</section>
+
+<!-- ─────────────── TEST ─────────────── -->
+<section>
+  <h2>Bộ test · 196 test, chạy offline</h2>
+  <div class="card scroll">
+    <table>
+      <thead><tr><th>File</th><th>Kiểm</th><th style="text-align:right">Dòng</th></tr></thead>
+      <tbody>
+        <tr><td class="mod">test_indicators.py</td><td>Công thức đúng trên chuỗi tính tay + khớp golden trên dữ liệu thật</td><td class="n">118</td></tr>
+        <tr><td class="mod">test_signals.py</td><td>Từng thành phần điểm, ranh giới verdict, 9 nhánh confluence</td><td class="n">167</td></tr>
+        <tr><td class="mod">test_levels.py</td><td>Pivot, hướng SL/TP, NEUTRAL không đề xuất entry</td><td class="n">86</td></tr>
+        <tr><td class="mod">test_context.py</td><td>Context khớp golden + <b>không rò rỉ HTML/màu</b></td><td class="n">133</td></tr>
+        <tr><td class="mod">test_messages.py</td><td>Text Telegram khớp golden <b>byte-for-byte</b></td><td class="n">90</td></tr>
+        <tr><td class="mod">test_render.py</td><td>Render đủ thành phần, không sót cú pháp Jinja</td><td class="n">114</td></tr>
+        <tr><td class="mod">test_watch.py</td><td>Debounce (lật giả → <b>0 alert</b>), đếm lỗi fetch, và <b>scan không tự gửi Telegram</b></td><td class="n">205</td></tr>
+        <tr><td class="mod">test_access.py</td><td>Hết hạn, thu hồi, chống spam, và <b>chat_id lạ không duyệt được</b></td><td class="n">250</td></tr>
+        <tr><td class="mod">test_api.py</td><td>401 khi chưa có quyền, không rò rỉ secret, <b>không giả mạo được chủ nhà</b></td><td class="n">215</td></tr>
+      </tbody>
+    </table>
+    <p class="note">
+      Test chạy trên <code>tests/fixtures/</code> — phản hồi Binance thật đã đóng băng.
+      Không gọi mạng, không phụ thuộc giá lúc chạy. <code>tests/golden/</code> giữ kết quả
+      mốc; sinh lại bằng <code>capture_golden.py</code> <b>chỉ khi cố ý</b> đổi model —
+      chạy theo phản xạ lúc test đỏ là hợp thức hoá luôn cả bug vừa tạo ra.
+    </p>
+  </div>
+</section>
+
+<!-- ─────────────── CẦN BIẾT ─────────────── -->
+<section>
+  <h2>Hai đặc tính cần biết trước khi chỉnh</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3 style="margin-top:0">Downtrend thuần không ra SHORT</h3>
+      <p>
+        RSI &lt; 35 cộng <b>+2</b> (thành phần mean-reversion) triệt tiêu các thành phần
+        giảm. SHORT chỉ xuất hiện khi RSI ở vùng giữa. LONG không vướng vì RSI 55–70 còn
+        được cộng thêm.
+      </p>
+      <p class="note">Cố ý, có test canh: <code>test_rsi_oversold_bu_lai_downtrend</code>.</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Report và monitor có thể lệch nhau</h3>
+      <p>
+        Cùng một mã nhưng report lấy <b>26</b> nến tuần, monitor lấy <b>52</b>, nên verdict
+        khung 1W khác nhau — dẫn tới confluence khác nhau.
+      </p>
+      <p class="note">Hành vi có sẵn từ trước refactor, chưa thống nhất.</p>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<div class="footer">
+  bitcoin-report · xem thêm <b>docs/ARCHITECTURE.md</b> và <b>README.md</b>
+</div>
+
+</body>
+</html>

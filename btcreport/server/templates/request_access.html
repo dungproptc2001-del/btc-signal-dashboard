@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Yêu cầu truy cập · BTC Signals</title>
+<style>{{ inline_css }}</style>
+</head>
+<body>
+<div class="gate">
+  <div class="gate-box">
+    <h2>&#8383; BTC Signals</h2>
+    <p class="lead">
+      Trang này ở chế độ riêng tư. Để lại tên và vài dòng cho chủ nhà biết bạn là ai,
+      yêu cầu sẽ được gửi thẳng qua Telegram. Được duyệt là bạn vào ngay, không cần
+      tải lại trang.
+    </p>
+
+    <form id="f">
+      <label for="name">Tên của bạn</label>
+      <input id="name" name="name" maxlength="60" autocomplete="name"
+             placeholder="Nguyễn Văn A" required>
+
+      <label for="message">Bạn là ai, cần xem để làm gì?</label>
+      <textarea id="message" name="message" maxlength="500" required
+                placeholder="Ví dụ: em là bạn ở nhóm crypto, muốn xem tín hiệu BTC"></textarea>
+      <div class="counter" id="cnt">0 / tối thiểu 10 ký tự</div>
+
+      <button type="submit" id="btn" disabled>Gửi yêu cầu</button>
+    </form>
+
+    <div class="msg" id="msg"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var f = document.getElementById('f');
+  var name = document.getElementById('name');
+  var message = document.getElementById('message');
+  var cnt = document.getElementById('cnt');
+  var btn = document.getElementById('btn');
+  var msg = document.getElementById('msg');
+  var MIN = 10;
+  var poll = null;
+
+  function validate() {
+    var n = message.value.trim().length;
+    cnt.textContent = n + ' / tối thiểu ' + MIN + ' ký tự';
+    cnt.className = 'counter' + (n >= MIN ? ' ok' : '');
+    btn.disabled = !(name.value.trim() && n >= MIN);
+  }
+  name.addEventListener('input', validate);
+  message.addEventListener('input', validate);
+  validate();
+
+  function show(cls, html) { msg.className = 'msg ' + cls; msg.innerHTML = html; }
+
+  f.addEventListener('submit', function (e) {
+    e.preventDefault();
+    btn.disabled = true;
+    btn.textContent = 'Đang gửi…';
+
+    var body = new URLSearchParams();
+    body.append('name', name.value.trim());
+    body.append('message', message.value.trim());
+
+    fetch('/access/request', { method: 'POST', body: body })
+      .then(function (r) { return r.json().then(function (d) { return { s: r.status, d: d }; }); })
+      .then(function (res) {
+        if (res.s === 200) {
+          f.style.display = 'none';
+          show('wait', '<span class="spin"></span>Đã gửi. Đang chờ chủ nhà duyệt…' +
+                       '<br><small style="color:#94a3b8">Giữ nguyên tab này, ' +
+                       'được duyệt là vào thẳng.</small>');
+          startPolling(res.d.request_id);
+        } else {
+          show('err', res.d.error || 'Có lỗi xảy ra.');
+          btn.disabled = false;
+          btn.textContent = 'Gửi yêu cầu';
+        }
+      })
+      .catch(function () {
+        show('err', 'Không kết nối được máy chủ.');
+        btn.disabled = false;
+        btn.textContent = 'Gửi yêu cầu';
+      });
+  });
+
+  function startPolling(id) {
+    poll = setInterval(function () {
+      fetch('/access/status?id=' + encodeURIComponent(id))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d.status === 'approved') {
+            clearInterval(poll);
+            show('ok', '✅ Được duyệt! Đang mở trang…');
+            setTimeout(function () { location.href = '/'; }, 700);
+          } else if (d.status === 'denied') {
+            clearInterval(poll);
+            show('err', '❌ Yêu cầu bị từ chối.');
+          } else if (d.status === 'expired') {
+            clearInterval(poll);
+            show('err', 'Yêu cầu đã hết hạn. Tải lại trang để gửi lại.');
+          }
+        })
+        .catch(function () {});
+    }, 3000);
+  }
+})();
+</script>
+</body>
+</html>
