@@ -15,6 +15,7 @@ from datetime import datetime
 from btcreport.config import CONFIRM_SCANS, PID_FILE, SCAN_INTERVAL, STATE_FILE, SYMBOLS
 from btcreport.notify.messages import format_monitor_startup
 from btcreport.notify.telegram import send_telegram
+from btcreport.service import journal
 from btcreport.service.watch import load_state, save_state, scan_symbols
 
 
@@ -67,7 +68,10 @@ def main():
         try:
             state, alerts = scan_symbols(state)
             for alert in alerts:
-                send_telegram(alert["text"])
+                ok = send_telegram(alert["text"])
+                # Ghi cả ở đây, không chỉ trong server – không thì chạy monitor tay
+                # là lịch sử thủng một khoảng mà không ai biết.
+                journal.append(alert, telegram_ok=bool(ok))
             save_state(state)
         except Exception as e:
             # Một lỗi bất ngờ không được phép giết cả monitor

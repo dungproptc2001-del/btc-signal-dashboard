@@ -204,13 +204,44 @@ btcreport/          thư viện — không có entrypoint
 apps/               entrypoint: server.py, report.py, monitor.py
 scripts/            .bat + setup_tasks.ps1
 tests/              pytest + fixtures đóng băng
-data/               runtime: state, pid, log, access.json
+data/               runtime: state, pid, log, access.json, signals.jsonl
 output/             btc_report.html
 docs/               ARCHITECTURE.md, structure.html, plan/, spec/
 ```
 
 Chi tiết ranh giới từng tầng: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 Sơ đồ trực quan: [docs/structure.html](docs/structure.html) (mở bằng browser).
+
+---
+
+## Nhật ký tín hiệu
+
+Mỗi tín hiệu mua/bán bắn xuống Telegram đều được ghi lại vào `data/signals.jsonl` và
+hiện lên **trang chủ**, mục *Nhật ký tín hiệu*. Bấm vào một dòng để giãn ra xem đúng
+nội dung đã nhận trên Telegram.
+
+Chỉ ghi **tín hiệu mua/bán thật** — lỗi fetch không vào nhật ký. Chốt lọc nằm trong
+`journal.append()` chứ không ở người gọi, để sau này thêm loại alert mới không lỡ lọt vào.
+
+Định dạng JSONL: mỗi dòng một object JSON, mở bằng notepad đọc được. Chọn nó thay vì một
+mảng JSON vì ghi chỉ là nối thêm một dòng — mảng JSON thì mỗi lần bắn phải đọc rồi ghi
+đè cả file, kill giữa chừng là **mất sạch lịch sử** chứ không phải mất một dòng.
+
+Hai trường đáng chú ý:
+
+- **`price`** — giá lúc bắn. Không có nó thì sau này không cách nào chấm điểm tín hiệu
+  đúng hay sai. Thêm sau là lịch sử cũ vĩnh viễn không có.
+- **`first_seen_at`** — lúc thị trường *thật sự* đổi. Debounce giữ 2 lượt quét mới báo
+  nên `at` (lúc bắn) trễ hơn khoảng một chu kỳ quét. Có cả hai mới biết độ trễ thật.
+
+Thời gian ghi kèm offset `+07:00` — khách xem từ múi giờ khác không đọc nhầm.
+
+Khách đã được duyệt xem được **toàn bộ** lịch sử, như chủ nhà. Khác với `/api/link` —
+cái đó chỉ chủ nhà.
+
+> Nhật ký bắt đầu từ lúc bật tính năng, **không có lịch sử cũ** — trước đó dữ liệu chưa
+> từng được lưu. Và với những mã đang dở một chu kỳ chờ lúc nâng cấp, bản ghi đầu tiên sẽ
+> có `first_seen_at` bằng `at`; từ chu kỳ sau là đúng.
 
 ---
 
@@ -254,7 +285,7 @@ refactor, chưa thống nhất.
 
 ```powershell
 pip install -r requirements-dev.txt
-python -m pytest tests -q                # 203 test
+python -m pytest tests -q                # 259 test
 ```
 
 Test chạy trên **fixtures đóng băng** trong `tests/fixtures/` — không gọi mạng, không

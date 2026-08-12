@@ -17,6 +17,15 @@ from ..engine.levels import risk_levels, support_resistance
 from ..engine.signals import confluence
 from ..notify.messages import format_fetch_failure, format_monitor_alert
 from ..sources.binance import fetch_klines, fetch_ticker
+from .journal import TZ_VN
+
+
+def _iso_vn(now=None):
+    """Mốc thời gian kèm offset +07:00 – khách xem từ múi giờ khác không đọc sai."""
+    dt = now or datetime.now(TZ_VN)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=TZ_VN)
+    return dt.isoformat(timespec="seconds")
 
 
 # ── SNAPSHOT ──────────────────────────────────────────────────────────────────
@@ -111,6 +120,11 @@ def scan_symbols(state, symbols=None, snapshot_fn=get_snapshot, now=None, log=pr
 
         # Confluence khác state đã confirm → debounce
         pcount = entry.get("pending_count", 0) + 1 if conf == entry.get("pending") else 1
+        # Mốc thị trường THẬT SỰ đổi, khác với lúc alert bắn ra. Debounce giữ
+        # CONFIRM_SCANS lượt mới báo, nên lúc bắn đã trễ ~1 chu kỳ quét. Giữ mốc này
+        # thì nhật ký mới nói được độ trễ thật.
+        if pcount == 1:
+            entry["pending_since"] = _iso_vn(now)
         entry.update(pending=conf, pending_count=pcount, timestamp=now_str)
 
         confirmed = True if not prev else pcount >= CONFIRM_SCANS
@@ -123,7 +137,12 @@ def scan_symbols(state, symbols=None, snapshot_fn=get_snapshot, now=None, log=pr
             "kind": "signal", "name": name, "symbol": symbol,
             "text": format_monitor_alert(name, prev, snap, now_str),
             "snapshot": snap,
+            # Cho journal. Bắt nó tự suy từ `text` là phải parse chuỗi – hỏng ngay
+            # lần đầu ai đó sửa câu chữ của tin nhắn.
+            "prev": prev,
+            "pending_since": entry.get("pending_since"),
         })
-        entry.update(confluence=conf, pending="", pending_count=0, timestamp=now_str)
+        entry.update(confluence=conf, pending="", pending_count=0,
+                     pending_since=None, timestamp=now_str)
 
     return state, alerts
