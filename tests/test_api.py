@@ -266,6 +266,47 @@ def test_khong_co_tunnel_thi_link_None(owner):
     assert owner.get("/api/link").json()["url"] is None
 
 
+# ── CSS/JS NHÚNG VÀO TRANG PHẢI CHẠY ĐƯỢC ─────────────────────────────────────
+# Lỗi câm đã từng xảy ra: autoescape biến ' thành &#39; trong <script>, script chết
+# ngay dòng đầu và CSS mất hết font-family. Trang vẫn trả 200, vẫn đủ chữ, chỉ là
+# KHÔNG CÓ GÌ CHẠY — grep chuỗi trong HTML không phát hiện được, vì chuỗi cần tìm
+# nằm ngay trong mã nguồn JS nhúng vào.
+import re
+
+
+def _khoi_script(html):
+    return re.findall(r"<script[^>]*>(.*?)</script>", html, re.S)
+
+
+def _khoi_style(html):
+    return re.findall(r"<style[^>]*>(.*?)</style>", html, re.S)
+
+
+# Chỉ dò &#39; và &quot;. KHÔNG dò &lt; &gt; &amp; — hàm esc() trong dashboard.js
+# chứa đúng ba chuỗi đó làm giá trị thay thế, chúng nằm đấy hợp lệ.
+@pytest.mark.parametrize("entity", ["&#39;", "&quot;"])
+def test_js_nhung_vao_KHONG_bi_html_escape(owner, entity):
+    for khoi in _khoi_script(owner.get("/").text):
+        assert entity not in khoi, f"script bị escape ({entity}) – JS sẽ chết ngay"
+
+
+def test_css_nhung_vao_KHONG_bi_html_escape(owner):
+    for khoi in _khoi_style(owner.get("/").text):
+        assert "&#39;" not in khoi and "&gt;" not in khoi
+
+
+def test_trang_xin_quyen_cung_khong_bi_escape(guest):
+    for khoi in _khoi_style(guest.get("/").text):
+        assert "&#39;" not in khoi
+
+
+def test_js_giu_nguyen_dau_nhay_that(owner):
+    """Chốt dương tính: phải thấy đúng mã nguồn, không phải bản đã escape."""
+    js = "\n".join(_khoi_script(owner.get("/").text))
+    assert "return 'na';" in js
+    assert "getElementById" in js
+
+
 # ── NHẬT KÝ TÍN HIỆU ──────────────────────────────────────────────────────────
 def test_lich_su_khong_quyen_thi_401(guest):
     assert guest.get("/api/signals/history").status_code == 401
