@@ -9,6 +9,7 @@ from fastapi.responses import (
     HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse,
 )
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from markupsafe import Markup
 
 from ..config import GUEST_TTL_DAYS, OWNER_KEY, SESSION_COOKIE
 from ..service import journal
@@ -26,9 +27,19 @@ _env = Environment(loader=FileSystemLoader(TEMPLATES),
 
 
 def _render(name, **ctx):
+    """Nhúng CSS/JS vào trang.
+
+    PHẢI bọc Markup. Autoescape đang bật cho .html, nên chuỗi thường sẽ bị escape:
+    dấu nháy thành &#39;, dấu < thành &lt; — script chết ngay dòng đầu và CSS mất
+    hết font-family. Đây là lỗi câm: trang vẫn trả về 200, vẫn đủ chữ, chỉ là
+    không có gì chạy. Có test canh (test_render_dashboard).
+
+    An toàn vì đây là file tĩnh của chính mình, không phải dữ liệu người dùng.
+    """
     css = (STATIC / "dashboard.css").read_text(encoding="utf-8")
     js  = (STATIC / "dashboard.js").read_text(encoding="utf-8")
-    return _env.get_template(name).render(inline_css=css, inline_js=js, **ctx)
+    return _env.get_template(name).render(
+        inline_css=Markup(css), inline_js=Markup(js), **ctx)
 
 
 _OWNER_SESSION_TOKEN = secrets.token_urlsafe(32)
