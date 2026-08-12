@@ -143,7 +143,15 @@ _tasks = []
 
 async def start():
     """Chạy ngay một lượt mỗi nhịp rồi mới vào chu kỳ – không bắt người dùng
-    đợi 4 tiếng mới có báo cáo đầu tiên."""
+    đợi 4 tiếng mới có báo cáo đầu tiên.
+
+    Đang chạy rồi thì không làm gì. Lớp bảo vệ thứ hai sau khoá trong power.py:
+    hai bộ scheduler cùng chạy sẽ ghi đè last_signals.json của nhau.
+    """
+    if _tasks:
+        log("Scheduler đang chạy sẵn – bỏ qua.")
+        return
+
     STATE.signal_state = load_state()
     log("Nạp state, chạy lượt đầu...")
 

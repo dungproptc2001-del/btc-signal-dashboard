@@ -20,7 +20,11 @@ class ServerState:
         self.report_ctx  = None
         self.report_html = None
         self.tunnel_url  = None
+        # Nhớ URL cũ qua chu kỳ /off → /on để biết link có đổi mà cảnh báo khách
+        self.last_tunnel_url = None
         self.paused      = False
+        self.standby     = False
+        self.standby_since = None
         self.last_price_at  = None
         self.last_scan_at   = None
         self.last_report_at = None
@@ -109,6 +113,8 @@ class ServerState:
                 "symbols": symbols,
                 "status": {
                     "paused":          self.paused,
+                    "standby":         self.standby,
+                    "standby_since":   _iso(self.standby_since),
                     "viewers":         len(self._subscribers),
                     "started_at":      _iso(self.started_at),
                     "uptime_seconds":  int((datetime.now() - self.started_at).total_seconds()),

@@ -76,6 +76,11 @@ SERVER_PORT      = int(os.environ.get("SERVER_PORT", "8000"))
 # "tailscale"  – URL cố định https://<ten-may>.<tailnet>.ts.net
 # "cloudflare" – quick tunnel, URL đổi mỗi lần khởi động, không cần tài khoản
 TUNNEL_PROVIDER  = os.environ.get("TUNNEL_PROVIDER", "tailscale").strip().lower()
+
+# /off có nhả keep-alive cho máy ngủ luôn không.
+# Mặc định KHÔNG: máy ngủ là bot câm, gõ /on vào khoảng không rồi phải mò về mở laptop.
+# Bật bằng cờ --sleep-on-off nếu chấp nhận đánh đổi đó để tiết kiệm điện.
+SLEEP_ON_OFF     = os.environ.get("SLEEP_ON_OFF", "").strip().lower() in ("1", "true", "yes")
 PRICE_INTERVAL   = 30           # giây – nhịp cập nhật giá cho dashboard
 REPORT_INTERVAL  = 4 * 60 * 60  # giây – nhịp dựng lại báo cáo BTC
 
