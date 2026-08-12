@@ -20,7 +20,7 @@ dựng báo cáo 4 tiếng. Tự host trên laptop, mở ra internet, người l
 | Trong máy | `http://localhost:8000` — vào thẳng, không cần đăng nhập |
 | Tự bật | Task Scheduler `BTC Web Server`, trigger AtLogOn |
 | Desktop | 5 shortcut: Bật · Tắt · Trạng thái · Dashboard · Link công khai |
-| Test | 233, chạy offline trên fixture đóng băng |
+| Test | 259, chạy offline trên fixture đóng băng |
 | Ranh giới 6 tầng | 0 vi phạm (quét AST) |
 
 Nhánh:
@@ -93,8 +93,12 @@ của nhau. Xoá file đó là vòng quét coi như chạy lần đầu, bắn l
 | `OWNER_KEY` chưa cố định trong `.env` | Đặt cố định thì có bookmark vĩnh viễn tự đăng nhập. Đổi lại là mật khẩu nằm trong URL |
 | Report và monitor cho confluence khác nhau | Report lấy 26 nến tuần, monitor lấy 52 → verdict khung 1W lệch. Có từ trước refactor, chưa thống nhất |
 
-**Đợt tới:** [Feed tín hiệu lên web](plan/signal-feed-plan.md) — mới ở mức brainstorm,
-chưa chốt, chưa code.
+### 4. Nhật ký tín hiệu lên web
+
+Tín hiệu mua/bán bắn xuống Telegram giờ cũng được ghi vào `data/signals.jsonl` và hiện
+trên trang chủ, kèm giá lúc bắn và mốc thị trường thật sự đổi.
+
+Hồ sơ: [plan](plan/signal-feed-plan.md) · [spec](spec/signal-feed-spec.md)
 
 ---
 

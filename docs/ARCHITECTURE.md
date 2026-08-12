@@ -161,6 +161,12 @@ có hẳn một test nổ nếu ai đó lỡ gọi `send_telegram` từ trong đ
 | `tunnel.py` | Mở server ra internet. `TUNNEL_PROVIDER=tailscale` (URL cố định) hoặc `cloudflare` (URL đổi mỗi lần chạy). |
 | `power.py` | `/off` `/on`: nghỉ và bật lại mà **không** giết tiến trình. Khoá chống gọi chồng. |
 
+Tầng `service/` có thêm:
+
+| File | Việc |
+|---|---|
+| `journal.py` | Nhật ký tín hiệu mua/bán ra `data/signals.jsonl`. Ở `service/` chứ không `server/` vì `apps/monitor.py` cũng quét — để ở `server/` thì chạy monitor tay là lịch sử thủng lỗ chỗ mà không ai biết. |
+
 ### `apps/`
 
 | File | Việc |
@@ -339,7 +345,7 @@ Máy dùng S0 Modern Standby, ngủ sau 5 phút. `SetThreadExecutionState` chỉ
 
 ## Bộ test
 
-233 test chạy trên fixtures đóng băng — không mạng, không phụ thuộc giá.
+259 test chạy trên fixtures đóng băng — không mạng, không phụ thuộc giá.
 
 | File | Kiểm |
 |---|---|
