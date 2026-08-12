@@ -20,7 +20,8 @@ Một process lo cả ba việc:
 cd E:\bitcoin-report
 pip install -r requirements.txt          # requests, jinja2, fastapi, uvicorn
 copy .env.example .env                   # rồi điền token vào .env
-winget install Cloudflare.cloudflared    # chỉ cần nếu muốn mở ra internet
+winget install tailscale.tailscale       # chỉ cần nếu muốn mở ra internet
+tailscale up                             # đăng nhập, rồi bật Funnel (xem bên dưới)
 ```
 
 `.env` cần hai giá trị (token lấy từ [@BotFather](https://t.me/BotFather),
@@ -47,6 +48,8 @@ python -m apps.server --allow-sleep      # không giữ máy thức
 Mở `http://localhost:8000`. Từ chính máy này thì vào thẳng, không cần đăng nhập.
 Bot sẽ nhắn URL công khai và link vào thẳng ngay khi server bật.
 
+Ngoài desktop có sẵn 5 shortcut: **Bật · Tắt · Trạng thái · Dashboard · Link công khai**.
+
 ### Chạy tự động lúc đăng nhập
 
 ```powershell
@@ -68,6 +71,7 @@ mặc định **chỉ chạy khi cắm điện**, máy dùng pin là task fail l
 | `scripts\server_start.bat` | Bật |
 | `scripts\server_stop.bat` | Tắt, nhả keep-alive, đóng tunnel |
 | `scripts\server_status.bat` | Đang chạy không, sống bao lâu, có tạm dừng không |
+| `scripts\server_link.bat` | Hỏi server link công khai đang sống, chép vào clipboard |
 | Telegram `/status` `/url` `/pause` `/resume` `/stop` `/scan` | Điều khiển từ điện thoại |
 
 > `schtasks /end` **không** đủ để dừng server — nó chỉ giết `cmd.exe` bọc ngoài,
@@ -94,9 +98,20 @@ powercfg /requests        # phải thấy python.exe trong mục SYSTEM
 
 ## Chia sẻ cho người khác xem
 
-Server mở ra internet qua **Cloudflare quick tunnel** — không cần tài khoản, không cần
-mở port router. Đổi lại URL `*.trycloudflare.com` **đổi mỗi lần khởi động**; bot tự nhắn
-URL mới nên ông luôn biết link hiện tại, gõ `/url` để lấy lại.
+Server mở ra internet qua **Tailscale Funnel** — không cần mở port router, không cần
+domain, và **URL cố định**, không đổi qua các lần khởi động lại:
+
+```
+https://<ten-may>.<tailnet>.ts.net
+```
+
+Bật lần đầu: `tailscale up` để đăng nhập, rồi chạy `tailscale funnel --bg 8000`. Lần đầu
+nó sẽ báo Funnel chưa được bật cho tailnet kèm một link admin console — mở link đó bấm
+bật, xong là vĩnh viễn. Cấu hình funnel do `tailscaled` giữ nên sống qua cả reboot.
+
+Muốn quay về quick tunnel của Cloudflare (không cần tài khoản, đổi lại URL đổi mỗi lần
+khởi động) thì đặt `TUNNEL_PROVIDER=cloudflare` trong `.env`. Cả hai đường đều nằm gọn
+trong [btcreport/server/tunnel.py](btcreport/server/tunnel.py), phần còn lại không đổi.
 
 Luồng xin quyền:
 
@@ -112,6 +127,29 @@ chặn **trước khi** gửi Telegram — nếu không, bất kỳ ai cũng là
 Cửa sau cho chủ nhà, dùng khi Telegram hỏng hoặc vào từ máy khác:
 `<url>/login?key=<OWNER_KEY>`. Đặt `OWNER_KEY` cố định trong `.env`, không thì mỗi lần
 khởi động sinh khoá mới (bot vẫn nhắn link).
+
+### Vì sao mọi tunnel đều là một cái bẫy quyền
+
+Tunnel nào cũng proxy vào server, nên request từ internet **có thể mang danh nghĩa
+localhost** — mà localhost thì code coi là chủ nhà. Sai chỗ này là mọi người lạ vào
+thẳng dashboard. `_is_owner_request()` vì thế chặn hai lớp: thấy bất kỳ header proxy nào
+là loại ngay, sau đó mới xét địa chỉ có phải loopback thật không.
+
+Đo thật từ ngoài internet (12/08/2026), không suy đoán:
+
+| Provider | `client.host` | Header proxy | Lớp nào đỡ |
+|---|---|---|---|
+| Tailscale Funnel | `100.x.y.z` (interface tailscale) | `x-forwarded-for` | **cả hai** |
+| Cloudflare tunnel | `127.0.0.1` | `cf-connecting-ip` | chỉ lớp header |
+
+Lớp header fail an toàn đúng chiều: khách tự khai thêm `x-forwarded-for` chỉ tự loại
+mình khỏi quyền chủ nhà, không bao giờ được thêm quyền.
+
+Funnel còn bơm vào `tailscale-user-login` / `-name` / `-profile-pic`. **Đừng tin.** Với
+traffic công khai chúng không phải danh tính đã xác thực. Có test canh để không ai lỡ
+dùng chúng cấp quyền.
+
+**Đổi provider tunnel là phải đo lại từ đầu**, đừng đọc doc rồi tin.
 
 ---
 
@@ -191,7 +229,7 @@ refactor, chưa thống nhất.
 
 ```powershell
 pip install -r requirements-dev.txt
-python -m pytest tests -q                # 196 test
+python -m pytest tests -q                # 203 test
 ```
 
 Test chạy trên **fixtures đóng băng** trong `tests/fixtures/` — không gọi mạng, không

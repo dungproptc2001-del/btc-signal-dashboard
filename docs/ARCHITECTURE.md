@@ -158,7 +158,7 @@ có hẳn một test nổ nếu ai đó lỡ gọi `send_telegram` từ trong đ
 | `access.py` | Phiên, yêu cầu truy cập, duyệt/từ chối/thu hồi, chống spam. |
 | `bot.py` | Long-poll Telegram: nút Duyệt/Từ chối + lệnh điều khiển. |
 | `keepalive.py` | Giữ máy không ngủ trong lúc server chạy. |
-| `tunnel.py` | Mở Cloudflare quick tunnel, bắt URL công khai. |
+| `tunnel.py` | Mở server ra internet. `TUNNEL_PROVIDER=tailscale` (URL cố định) hoặc `cloudflare` (URL đổi mỗi lần chạy). |
 
 ### `apps/`
 
@@ -208,7 +208,7 @@ save_state()                       ghi atomic qua os.replace
 apps/server.py
   ↓
 keepalive.hold()            giữ máy thức — không thì 5 phút nữa web sập
-tunnel.start()              → https://xxx.trycloudflare.com
+tunnel.start()              → https://ten-may.tailXXXX.ts.net   (cố định)
 scheduler.start()           3 task asyncio, mọi call chặn đẩy qua threadpool
 bot.poll_loop()             long-poll getUpdates
 uvicorn.serve()
@@ -249,12 +249,27 @@ mình. Duyệt, từ chối, thu hồi, `/stop` — tất cả đi qua đúng m�
 Nếu chặn sau khi gửi thì bất kỳ ai cũng làm ngập điện thoại chủ nhà. Có test canh
 đúng thứ tự này.
 
-**Nhận diện chủ nhà có hai lớp.** Cloudflared kết nối vào server từ chính
-`127.0.0.1` — chỉ nhìn địa chỉ thì **mọi khách trên internet đều thành chủ nhà**.
-Nên `_is_owner_request()` loại bỏ ngay mọi request mang header proxy
-(`cf-connecting-ip`, `x-forwarded-for`, …) *rồi* mới xét loopback. Thực tế uvicorn
-đã bật sẵn `ProxyHeadersMiddleware` và Cloudflare cũng chặn khách tự khai header,
-nhưng ranh giới quyền thì không dựa vào mặc định ngầm của thư viện bên thứ ba.
+**Nhận diện chủ nhà có hai lớp.** Tunnel nào cũng proxy vào server, nên request từ
+internet có thể mang danh nghĩa loopback — chỉ nhìn địa chỉ thì **mọi khách trên
+internet đều thành chủ nhà**. Nên `_is_owner_request()` loại bỏ ngay mọi request
+mang header proxy (`cf-connecting-ip`, `x-forwarded-for`, …) *rồi* mới xét loopback.
+
+Đo thật từ ngoài internet (12/08/2026), không đọc doc rồi tin:
+
+| Provider | `client.host` thấy được | Header proxy | Lớp nào đỡ |
+|---|---|---|---|
+| Tailscale Funnel | `100.x.y.z` — interface tailscale | `x-forwarded-for` | **cả hai** |
+| Cloudflare tunnel | `127.0.0.1` | `cf-connecting-ip` | chỉ lớp header |
+
+Cloudflare là trường hợp nguy hiểm hơn: mất lớp header là thủng sạch. Lớp header fail
+an toàn đúng chiều — khách tự khai `x-forwarded-for` chỉ tự loại mình khỏi quyền, không
+bao giờ được thêm quyền.
+
+Funnel còn bơm `tailscale-user-login` / `-name` / `-profile-pic` vào **mọi** request kể
+cả từ người lạ. Đó không phải danh tính đã xác thực; code không đọc chúng và có test
+canh để không ai lỡ dùng chúng cấp quyền.
+
+**Đổi provider tunnel là phải đo lại bảng trên**, đừng suy từ provider cũ.
 
 **`STATE.public()` không được chứa secret.** Có test dò `OWNER_KEY`, bot token và
 chuỗi `token` trong toàn bộ dữ liệu trả ra web.
@@ -300,7 +315,7 @@ Máy dùng S0 Modern Standby, ngủ sau 5 phút. `SetThreadExecutionState` chỉ
 
 ## Bộ test
 
-196 test chạy trên fixtures đóng băng — không mạng, không phụ thuộc giá.
+203 test chạy trên fixtures đóng băng — không mạng, không phụ thuộc giá.
 
 | File | Kiểm |
 |---|---|

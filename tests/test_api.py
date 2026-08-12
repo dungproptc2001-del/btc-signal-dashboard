@@ -75,6 +75,29 @@ def test_khach_khong_the_gia_mao_localhost():
     assert not app_module._is_owner_request(_FakeReq("127.0.0.1", spoof))
 
 
+def test_tailscale_funnel_khong_phai_chu_nha():
+    """Đúng những gì đo được từ ngoài internet qua Funnel (12/08/2026).
+
+    Hai lớp cùng đỡ ở đây: địa chỉ là interface tailscale chứ không phải
+    loopback, VÀ có x-forwarded-for.
+    """
+    funnel = {"x-forwarded-for": "203.0.113.9", "x-forwarded-proto": "https",
+              "x-forwarded-host": "laptop.tailXXXX.ts.net",
+              "tailscale-user-login": "", "tailscale-headers-info": ""}
+    assert not app_module._is_owner_request(_FakeReq("100.113.107.39", funnel))
+
+
+def test_header_tailscale_user_khong_cap_quyen_gi():
+    """Funnel bơm sẵn tailscale-user-* vào MỌI request công khai.
+
+    Người lạ tự khai mình là chủ tailnet cũng không được gì – code không đọc
+    mấy header đó, và test này canh để nó đừng bao giờ được đọc.
+    """
+    gia_mao = {"tailscale-user-login": "dungproptc2001@gmail.com",
+               "tailscale-user-name": "Chu nha"}
+    assert not app_module._is_owner_request(_FakeReq("1.2.3.4", gia_mao))
+
+
 # ── CỬA GÁC ───────────────────────────────────────────────────────────────────
 @pytest.mark.parametrize("path", ["/api/signals", "/api/report", "/events"])
 def test_api_khong_cookie_tra_401(guest, path):
@@ -200,6 +223,47 @@ def test_trang_xin_quyen_khong_lo_gi(guest):
     body = guest.get("/").text
     assert TELEGRAM_BOT_TOKEN not in body
     assert OWNER_KEY not in body
+
+
+# ── LINK CÔNG KHAI ────────────────────────────────────────────────────────────
+def test_link_khong_quyen_thi_401(guest):
+    assert guest.get("/api/link").status_code == 401
+
+
+def test_link_khach_da_duyet_van_bi_chan(guest, monkeypatch):
+    """Chốt chặn thứ hai. Cửa gác chỉ hỏi 'có phiên không', mà khách đã duyệt
+    thì có phiên – nên route phải tự kiểm quyền chủ nhà lần nữa."""
+    monkeypatch.setattr(access, "check_session",
+                        lambda t: {"name": "Khach", "owner": False})
+    guest.cookies.set(SESSION_COOKIE, "phien-khach-hop-le")
+    r = guest.get("/api/link")
+    assert r.status_code == 403
+    assert "tail" not in r.text.lower()
+
+
+def test_chu_nha_lay_duoc_link(owner):
+    STATE.tunnel_url = "https://vi-du.tail0000.ts.net"
+    try:
+        r = owner.get("/api/link")
+        assert r.status_code == 200
+        assert r.json()["url"] == "https://vi-du.tail0000.ts.net"
+    finally:
+        STATE.tunnel_url = None
+
+
+def test_link_khong_kem_owner_key(owner):
+    """Link này để gửi cho người khác. Kèm OWNER_KEY là khách tự cấp quyền chủ
+    nhà cho mình, thu hồi phiên cũng vô nghĩa."""
+    STATE.tunnel_url = "https://vi-du.tail0000.ts.net"
+    try:
+        assert OWNER_KEY not in owner.get("/api/link").text
+    finally:
+        STATE.tunnel_url = None
+
+
+def test_khong_co_tunnel_thi_link_None(owner):
+    STATE.tunnel_url = None
+    assert owner.get("/api/link").json()["url"] is None
 
 
 # ── BÁO CÁO ───────────────────────────────────────────────────────────────────

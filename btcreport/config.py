@@ -72,6 +72,10 @@ REPORT_FILE = OUTPUT_DIR / "btc_report.html"
 # ── SERVER ───────────────────────────────────────────────────────────────────
 SERVER_HOST      = os.environ.get("SERVER_HOST", "0.0.0.0")
 SERVER_PORT      = int(os.environ.get("SERVER_PORT", "8000"))
+
+# "tailscale"  – URL cố định https://<ten-may>.<tailnet>.ts.net
+# "cloudflare" – quick tunnel, URL đổi mỗi lần khởi động, không cần tài khoản
+TUNNEL_PROVIDER  = os.environ.get("TUNNEL_PROVIDER", "tailscale").strip().lower()
 PRICE_INTERVAL   = 30           # giây – nhịp cập nhật giá cho dashboard
 REPORT_INTERVAL  = 4 * 60 * 60  # giây – nhịp dựng lại báo cáo BTC
 
