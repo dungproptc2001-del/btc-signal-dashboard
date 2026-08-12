@@ -1,0 +1,23 @@
+🔶 BTC/USDT – Multi-Timeframe
+⏰ 12/08/2026 15:00
+
+💰 Giá: $63,694  (-0.60% 24h)
+😱 Fear & Greed: 27 – Fear
+
+━━━━ CONFLUENCE ━━━━
+🔴 SHORT BIAS  (2/4 đồng thuận)
+
+🟡 1W  NEUTRAL  RSI 41  MACD ▲
+🔴 1D  SHORT    RSI 46  MACD ▼
+🔴 4H  SHORT    RSI 41  MACD ▼
+🟡 1H  NEUTRAL  RSI 44  MACD ▲
+
+🎯 R1: $65,033  |  R2: $66,372
+🛡  S1: $62,796  |  S2: $61,899
+
+📐 Setup 1D (SHORT)
+   Entry $63,693
+   SL    $65,512
+   TP    $60,056   (R:R 1:2)
+━━━━━━━━━━━━━━━━━━━━
+⚠️ Chỉ tham khảo. Quản lý rủi ro!

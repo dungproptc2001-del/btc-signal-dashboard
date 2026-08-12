@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BTC Signals · trực tiếp</title>
+<style>{{ inline_css }}</style>
+</head>
+<body>
+
+<div class="top">
+  <div>
+    <h1>&#8383; BTC / ETH / XAU · Tín hiệu trực tiếp</h1>
+    <div class="sub">Xin chào {{ viewer }}{% if is_owner %} · chủ nhà{% endif %}</div>
+  </div>
+  <div class="top-right">
+    <span class="badge"><span class="dot" id="dot"></span><span id="live-text">đang nối…</span></span>
+    <a class="badge" href="/report" target="_blank">📄 Báo cáo BTC đầy đủ</a>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="cards" id="cards"></div>
+
+  <div class="statusbar">
+    <span>Trạng thái: <span id="st-paused"></span></span>
+    <span>Giá cập nhật: <b id="st-price">—</b></span>
+    <span>Quét gần nhất: <b id="st-scan">—</b></span>
+    <span>Quét tiếp sau: <b id="st-next">—</b></span>
+    <span>Người xem: <b id="st-viewers">0</b></span>
+    <span id="st-alert" style="color:var(--amber)"></span>
+  </div>
+
+  <div class="foot">
+    Dữ liệu Binance · chỉ mang tính tham khảo, không phải lời khuyên đầu tư
+  </div>
+</div>
+
+<script>window.INITIAL = {{ initial | safe }};</script>
+<script>{{ inline_js }}</script>
+</body>
+</html>

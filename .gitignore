@@ -1,0 +1,12 @@
+# Secrets
+.env
+
+# Runtime
+data/
+output/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Golden/fixtures sinh lai duoc bang tests/capture_*.py
+tests/golden/report_old.html
