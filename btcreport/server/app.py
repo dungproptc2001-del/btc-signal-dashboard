@@ -51,6 +51,21 @@ def _is_owner_request(request):
     Thực tế uvicorn đã bật sẵn ProxyHeadersMiddleware nên `client.host` đã được
     thay bằng IP thật, và Cloudflare cũng chặn khách tự khai header. Nhưng đây là
     ranh giới quyền – không dựa vào mặc định ngầm của thư viện bên thứ ba.
+
+    ĐÃ ĐO THẬT, không suy đoán (12/08/2026, request từ ngoài internet):
+
+        Tailscale Funnel   client.host = 100.x.y.z (interface tailscale, KHÔNG
+                           phải loopback) + có x-forwarded-for  → cả hai lớp đỡ
+        Cloudflare tunnel  client.host = 127.0.0.1 + có cf-connecting-ip
+                           → CHỈ lớp header đỡ
+
+    Chú ý lớp header fail-safe đúng chiều: khách tự khai thêm x-forwarded-for chỉ
+    làm mình bị loại khỏi quyền chủ nhà, không bao giờ được thêm quyền.
+
+    Funnel còn bơm vào tailscale-user-login / -name / -profile-pic. ĐỪNG tin mấy
+    header đó: với traffic công khai chúng không phải danh tính đã xác thực.
+
+    Đổi provider tunnel là phải đo lại từ đầu.
     """
     if any(h in request.headers for h in FORWARDED_HINTS):
         return False
@@ -144,6 +159,23 @@ async def api_report():
     if not STATE.report_ctx:
         return JSONResponse({"error": "Chưa có báo cáo."}, status_code=503)
     return json.loads(json.dumps(STATE.report_ctx, default=str))
+
+
+@app.get("/api/link")
+async def api_link(request: Request):
+    """Link công khai hiện tại – để shortcut ngoài desktop hỏi server chứ không
+    đóng băng URL vào file (quick tunnel đổi URL mỗi lần khởi động).
+
+    CHỈ chủ nhà. Cửa gác ở trên cho cả khách đã duyệt đi qua /api/*, nên phải
+    kiểm quyền chủ nhà lần nữa ở đây.
+
+    Không kèm OWNER_KEY: đây là link để gửi cho người khác. Lộ key là khách tự
+    cấp quyền chủ nhà cho mình, thu hồi phiên cũng vô nghĩa.
+    """
+    session = _session_of(request)
+    if not (session and session.get("owner")):
+        return JSONResponse({"error": "Chỉ chủ nhà."}, status_code=403)
+    return {"url": STATE.tunnel_url}
 
 
 @app.get("/healthz")

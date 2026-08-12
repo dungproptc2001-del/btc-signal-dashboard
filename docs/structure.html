@@ -73,7 +73,7 @@
 
 <div class="header">
   <h1>bitcoin-report · Cấu trúc code</h1>
-  <p>Web dashboard + engine phân tích BTC · 2.625 dòng Python trong 27 module · 196 test</p>
+  <p>Web dashboard + engine phân tích BTC · 2.773 dòng Python trong 24 module · 203 test</p>
 </div>
 
 <div class="wrap">
@@ -179,7 +179,7 @@
       <div class="flow">apps/server.py
   ↓
 keepalive.hold()      giữ máy thức
-tunnel.start()        → *.trycloudflare.com
+tunnel.start()        → https://ten-may.tailXXXX.ts.net  (cố định)
 scheduler.start()     3 task asyncio
 bot.poll_loop()       long-poll Telegram
 uvicorn.serve()
@@ -245,13 +245,20 @@ Duyệt → cookie 7 ngày, trang khách tự vào dashboard</div>
     <div class="card">
       <h3 style="margin-top:0">③ Nhận diện chủ nhà hai lớp</h3>
       <p>
-        Cloudflared kết nối vào server từ chính <code>127.0.0.1</code> — chỉ nhìn địa chỉ
-        thì <b>mọi khách trên internet đều thành chủ nhà</b>. Nên loại bỏ ngay request
-        mang header proxy <i>rồi</i> mới xét loopback.
+        Tunnel nào cũng proxy vào server, nên request từ internet có thể mang danh nghĩa
+        loopback — chỉ nhìn địa chỉ thì <b>mọi khách trên internet đều thành chủ nhà</b>.
+        Nên loại bỏ ngay request mang header proxy <i>rồi</i> mới xét loopback.
       </p>
       <p class="note">
-        uvicorn đã bật sẵn ProxyHeadersMiddleware và Cloudflare cũng chặn header giả,
-        nhưng ranh giới quyền không dựa vào mặc định ngầm của thư viện bên thứ ba.
+        Đo thật từ ngoài internet 12/08/2026:
+        <b>Tailscale Funnel</b> → <code>client.host = 100.x.y.z</code> +
+        <code>x-forwarded-for</code>, cả hai lớp cùng đỡ.
+        <b>Cloudflare</b> → <code>client.host = 127.0.0.1</code> +
+        <code>cf-connecting-ip</code>, chỉ lớp header đỡ. Đổi provider là phải đo lại.
+      </p>
+      <p class="note">
+        Funnel bơm <code>tailscale-user-login</code> vào mọi request kể cả người lạ —
+        không phải danh tính đã xác thực, có test canh để không ai dùng nó cấp quyền.
       </p>
     </div>
     <div class="card">
@@ -399,7 +406,7 @@ Duyệt → cookie 7 ngày, trang khách tự vào dashboard</div>
       </thead>
       <tbody>
         <tr><td><span class="tag t-cfg">config</span></td><td class="mod">btcreport/config.py</td>
-            <td>Đọc <code>.env</code>, đường dẫn, mọi hằng số. Nơi duy nhất định nghĩa <code>MAX_SCORE</code>.</td><td class="n">69</td></tr>
+            <td>Đọc <code>.env</code>, đường dẫn, mọi hằng số. Nơi duy nhất định nghĩa <code>MAX_SCORE</code>.</td><td class="n">94</td></tr>
 
         <tr><td><span class="tag t-src">sources</span></td><td class="mod">sources/http.py</td>
             <td>Cửa duy nhất ra internet. Retry 4 lần, backoff mũ, tôn trọng <code>Retry-After</code>. 429/5xx retry, 4xx khác raise ngay.</td><td class="n">40</td></tr>
@@ -439,7 +446,7 @@ Duyệt → cookie 7 ngày, trang khách tự vào dashboard</div>
             <td><code>build_report()</code> → <code>(html, message, ctx)</code>. Dùng chung cho <code>apps/report.py</code> và server.</td><td class="n">46</td></tr>
 
         <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/app.py</td>
-            <td>FastAPI: route, middleware gác cửa, SSE, luồng xin quyền. Nhận diện chủ nhà hai lớp.</td><td class="n">214</td></tr>
+            <td>FastAPI: route, middleware gác cửa, SSE, luồng xin quyền. Nhận diện chủ nhà hai lớp.</td><td class="n">246</td></tr>
         <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/access.py</td>
             <td>Phiên 7 ngày, yêu cầu truy cập, duyệt/từ chối/thu hồi, chống spam. Mọi đặc quyền qua <code>is_owner()</code>.</td><td class="n">270</td></tr>
         <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/bot.py</td>
@@ -449,7 +456,7 @@ Duyệt → cookie 7 ngày, trang khách tự vào dashboard</div>
         <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/state.py</td>
             <td>Cache RAM + kênh SSE. <code>public()</code> là cửa duy nhất dữ liệu ra web.</td><td class="n">129</td></tr>
         <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/tunnel.py</td>
-            <td>Mở Cloudflare quick tunnel, bắt URL từ output. Tunnel hỏng không được làm sập server.</td><td class="n">98</td></tr>
+            <td>Mở server ra internet. <code>tailscale</code> (URL cố định) hoặc <code>cloudflare</code> (URL đổi mỗi lần chạy). Tunnel hỏng không được làm sập server.</td><td class="n">210</td></tr>
         <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/keepalive.py</td>
             <td><code>SetThreadExecutionState</code> — giữ máy thức đúng lúc server chạy, không sửa power plan.</td><td class="n">67</td></tr>
         <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/static/dashboard.js</td>
@@ -521,7 +528,7 @@ save_state()             os.replace atomic</div>
 
 <!-- ─────────────── TEST ─────────────── -->
 <section>
-  <h2>Bộ test · 196 test, chạy offline</h2>
+  <h2>Bộ test · 203 test, chạy offline</h2>
   <div class="card scroll">
     <table>
       <thead><tr><th>File</th><th>Kiểm</th><th style="text-align:right">Dòng</th></tr></thead>
