@@ -29,8 +29,14 @@ def available():
 
 
 def hold():
-    """Bắt đầu giữ máy thức. Trả True nếu thành công."""
+    """Bắt đầu giữ máy thức. Trả True nếu thành công.
+
+    Gọi lại khi đang giữ thì không làm gì – /on /off lặp lại sẽ chất đống
+    atexit.register(release) nếu không có chốt này.
+    """
     global _held
+    if _held:
+        return True
     if not available():
         print("  [keepalive] Không phải Windows – bỏ qua.")
         return False

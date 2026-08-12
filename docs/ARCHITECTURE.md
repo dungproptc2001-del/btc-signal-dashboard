@@ -159,6 +159,7 @@ có hẳn một test nổ nếu ai đó lỡ gọi `send_telegram` từ trong đ
 | `bot.py` | Long-poll Telegram: nút Duyệt/Từ chối + lệnh điều khiển. |
 | `keepalive.py` | Giữ máy không ngủ trong lúc server chạy. |
 | `tunnel.py` | Mở server ra internet. `TUNNEL_PROVIDER=tailscale` (URL cố định) hoặc `cloudflare` (URL đổi mỗi lần chạy). |
+| `power.py` | `/off` `/on`: nghỉ và bật lại mà **không** giết tiến trình. Khoá chống gọi chồng. |
 
 ### `apps/`
 
@@ -276,7 +277,30 @@ chuỗi `token` trong toàn bộ dữ liệu trả ra web.
 
 ---
 
-## Ba quyết định thiết kế
+## Bốn quyết định thiết kế
+
+### `/off` không giết tiến trình
+
+Bot Telegram sống *bên trong* server. Giết tiến trình là giết luôn tai nghe — không còn
+ai đọc `/on` để bật lại. Nên `/off` chỉ đưa server vào nghỉ: đóng tunnel, dừng ba nhịp
+nền, nhưng uvicorn vẫn chạy và bot vẫn poll.
+
+Đường khác đã cân: tách bot ra một tiến trình canh gác riêng. Bỏ vì **Telegram chỉ cho
+đúng một tiến trình gọi `getUpdates` trên một bot token** — hai cái cùng poll là `409
+Conflict`, nên phải refactor để mọi lệnh đọc `STATE` đi qua HTTP nội bộ. Tốn gấp nhiều
+lần mà chỉ mua thêm đúng một tình huống: tiến trình chết hẳn. Mà cách này không bao giờ
+để nó chết hẳn.
+
+Mặc định `/off` **không** nhả keep-alive, dù nghe ngược đời với chữ "tắt". Vì máy ngủ
+thì *không gì* trên máy nhận được Telegram — không server, không canh gác. Một lệnh tắt
+mà không chắc bật lại được thì tệ hơn là không có lệnh tắt, vì nó dụ người ta tin là
+điều khiển được từ xa. Ai muốn đổi ngược: cờ `--sleep-on-off`.
+
+Khoá `asyncio.Lock` dùng chung cho cả `standby()` và `wake()`, cộng chốt `if _tasks:
+return` trong `scheduler.start()`. Không có hai lớp đó thì `/on` bấm ba lần đẻ ra ba bộ
+scheduler, mỗi bộ một vòng quét riêng, ghi đè `last_signals.json` của nhau.
+
+### Ba quyết định còn lại
 
 ### Debounce hai lần quét
 
@@ -315,7 +339,7 @@ Máy dùng S0 Modern Standby, ngủ sau 5 phút. `SetThreadExecutionState` chỉ
 
 ## Bộ test
 
-203 test chạy trên fixtures đóng băng — không mạng, không phụ thuộc giá.
+233 test chạy trên fixtures đóng băng — không mạng, không phụ thuộc giá.
 
 | File | Kiểm |
 |---|---|
