@@ -15,6 +15,7 @@ from datetime import datetime
 
 from ..config import PRICE_INTERVAL, REPORT_INTERVAL, SCAN_INTERVAL, SYMBOLS
 from ..notify.telegram import send_telegram
+from ..service import journal
 from ..service.report import build_report, save_report
 from ..service.watch import load_state, save_state, scan_symbols
 from ..sources.binance import fetch_ticker
@@ -86,12 +87,19 @@ async def scan_once():
             STATE.update_snapshot(symbol, snap)
     STATE.last_scan_at = datetime.now()
 
+    entries = []
     for alert in alerts:
-        await _run(send_telegram, alert["text"])
+        ok = await _run(send_telegram, alert["text"])
+        # Ghi SAU khi gửi để biết Telegram có thành công không. Telegram hỏng vẫn
+        # phải ghi – đó chính là lúc web có giá trị nhất.
+        entry = await _run(lambda a=alert, k=ok: journal.append(a, telegram_ok=bool(k)))
+        if entry:
+            entries.append(entry)
 
     STATE.publish("signal", {
         "symbols": STATE.public()["symbols"],
         "alerts":  [{"name": a["name"], "kind": a["kind"]} for a in alerts],
+        "entries": entries,
         "at":      STATE.last_scan_at.isoformat(timespec="seconds"),
     })
     return alerts

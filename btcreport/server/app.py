@@ -11,6 +11,7 @@ from fastapi.responses import (
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from ..config import GUEST_TTL_DAYS, OWNER_KEY, SESSION_COOKIE
+from ..service import journal
 from . import access, bot
 from .state import STATE
 
@@ -159,6 +160,13 @@ async def api_report():
     if not STATE.report_ctx:
         return JSONResponse({"error": "Chưa có báo cáo."}, status_code=503)
     return json.loads(json.dumps(STATE.report_ctx, default=str))
+
+
+@app.get("/api/signals/history")
+async def api_history(limit: int = 50, symbol: str = ""):
+    """Nhật ký tín hiệu mua/bán. Khách đã duyệt xem được hết, như chủ nhà."""
+    limit = max(1, min(limit, 500))
+    return {"entries": journal.read(limit=limit, symbol=symbol or None)}
 
 
 @app.get("/api/link")
