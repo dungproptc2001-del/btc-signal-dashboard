@@ -4,6 +4,25 @@ Web dashboard theo dõi tín hiệu BTC / ETH / vàng theo thời gian thực, t
 máy cá nhân, cảnh báo qua Telegram. Người lạ muốn xem phải xin phép — duyệt bằng nút
 bấm ngay trong Telegram, kiểu request access của Google Docs.
 
+## Địa chỉ
+
+| | |
+|---|---|
+| **Công khai** | **https://laptop-28esvi13.tail5ac7f7.ts.net** |
+| Trong máy | `http://localhost:8000` — vào thẳng, không cần đăng nhập |
+
+Link công khai **cố định**: Tailscale neo nó vào tên máy trong tailnet nên giữ nguyên qua
+mọi lần khởi động lại, qua reboot, và qua cả chu kỳ `/off` → `/on`. Khách đã được duyệt
+không bao giờ phải xin lại link.
+
+Chỉ đổi nếu ông **đổi tên máy** hoặc **đổi tailnet**. Lúc đó sửa lại chỗ này và ở
+`scripts/`, còn code thì không đụng — server tự hỏi Tailscale lấy tên hiện tại. Gõ `/url`
+trong Telegram để lấy link đang sống bất cứ lúc nào.
+
+Người lạ mở link sẽ thấy trang xin quyền, không thấy dữ liệu gì.
+
+---
+
 Một process lo cả ba việc:
 
 | Nhịp | Chu kỳ | Việc |
@@ -127,7 +146,8 @@ Server mở ra internet qua **Tailscale Funnel** — không cần mở port rout
 domain, và **URL cố định**, không đổi qua các lần khởi động lại:
 
 ```
-https://<ten-may>.<tailnet>.ts.net
+https://laptop-28esvi13.tail5ac7f7.ts.net        ← link hiện tại
+https://<ten-may>.<tailnet>.ts.net               ← quy tắc chung
 ```
 
 Bật lần đầu: `tailscale up` để đăng nhập, rồi chạy `tailscale funnel --bg 8000`. Lần đầu
