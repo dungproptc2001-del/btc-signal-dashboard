@@ -89,9 +89,12 @@
     $('st-scan').textContent = s.last_scan_at ? s.last_scan_at.replace('T', ' ') : '—';
     $('st-price').textContent = s.last_price_at ? s.last_price_at.split('T')[1] : '—';
     $('st-viewers').textContent = s.viewers || 0;
-    $('st-paused').innerHTML = s.paused
-      ? '<span class="paused">⏸ ĐANG TẠM DỪNG</span>'
-      : '<b>đang chạy</b>';
+    $('st-paused').innerHTML = s.standby
+      ? '<span class="paused">🔌 ĐANG NGHỈ</span>'
+      : (s.paused ? '<span class="paused">⏸ ĐANG TẠM DỪNG</span>' : '<b>đang chạy</b>');
+
+    var b = $('standby-banner');
+    if (b) b.style.display = s.standby ? 'block' : 'none';
     tickCountdown();
   }
 
@@ -120,6 +123,13 @@
       state = JSON.parse(e.data);
       renderSymbols(); renderStatus(); setLive(true);
       state.symbols.forEach(function (s) { lastPrice[s.symbol] = s.price; });
+    });
+
+    es.addEventListener('power', function (e) {
+      var d = JSON.parse(e.data);
+      if (!state.status) state.status = {};
+      state.status.standby = d.standby;
+      renderStatus();
     });
 
     es.addEventListener('price', function (e) {

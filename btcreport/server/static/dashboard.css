@@ -73,6 +73,11 @@ a.badge:hover{border-color:var(--amber);color:var(--amber)}
 .statusbar b{color:#cbd5e1;font-weight:600;font-variant-numeric:tabular-nums}
 .paused{color:var(--amber);font-weight:700}
 
+.standby-banner{background:#f59e0b18;border:1px solid #f59e0b55;border-radius:10px;
+                padding:13px 16px;margin-bottom:18px;font-size:.85rem;color:#fcd34d;
+                line-height:1.6}
+.standby-banner b{color:var(--amber)}
+
 .foot{text-align:center;padding:26px;color:#334155;font-size:.76rem}
 
 /* ── Trang xin quyền ── */

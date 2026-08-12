@@ -72,7 +72,32 @@ mặc định **chỉ chạy khi cắm điện**, máy dùng pin là task fail l
 | `scripts\server_stop.bat` | Tắt, nhả keep-alive, đóng tunnel |
 | `scripts\server_status.bat` | Đang chạy không, sống bao lâu, có tạm dừng không |
 | `scripts\server_link.bat` | Hỏi server link công khai đang sống, chép vào clipboard |
-| Telegram `/status` `/url` `/pause` `/resume` `/stop` `/scan` | Điều khiển từ điện thoại |
+| Telegram `/status` `/url` `/scan` `/guests` `/revoke` | Điều khiển từ điện thoại |
+
+### Ba mức tắt, đừng lẫn
+
+| Lệnh | Dừng quét | Đóng link công khai | Máy được ngủ | Bot còn nghe |
+|---|---|---|---|---|
+| `/pause` `/resume` | ✓ | | | ✓ |
+| `/off` `/on` | ✓ | ✓ | chỉ khi `--sleep-on-off` | **✓ luôn luôn** |
+| `/stop` (hỏi lại bằng nút) | ✓ | ✓ | ✓ | ✗ |
+
+`/off` **không giết tiến trình** — nó đóng tunnel và dừng ba nhịp nền, nhưng uvicorn vẫn
+chạy và bot vẫn nghe. Đó là điểm mấu chốt: bot sống *bên trong* server, giết tiến trình
+là giết luôn tai nghe, không còn ai đọc `/on` để bật lại.
+
+Mặc định `/off` **không nhả keep-alive**. Máy vẫn thức, vẫn tốn điện — đổi lại một bảo
+đảm cứng: **đã tắt được từ điện thoại thì luôn bật lại được từ điện thoại**. Nhả
+keep-alive là máy ngủ, bot câm, ông gõ `/on` vào khoảng không rồi phải mò về mở laptop.
+Muốn đánh đổi ngược lại thì chạy server với `--sleep-on-off`.
+
+`/stop` là lệnh duy nhất không hoàn tác được từ xa, nên nó hỏi lại bằng nút bấm. Nút xác
+nhận đi qua đúng cửa kiểm `is_owner` như nút duyệt khách — không thì người lạ chỉ cần
+gửi đúng callback data là tắt được server của ông.
+
+Với Tailscale, link công khai **giữ nguyên** qua chu kỳ `/off` → `/on`, khách đã duyệt
+không phải xin lại. Với `TUNNEL_PROVIDER=cloudflare` thì URL đổi và bot sẽ cảnh báo ngay
+trong tin nhắn `/on`.
 
 > `schtasks /end` **không** đủ để dừng server — nó chỉ giết `cmd.exe` bọc ngoài,
 > tiến trình Python vẫn sống tiếp thành orphan. Dùng `server_stop.bat`, nó đọc

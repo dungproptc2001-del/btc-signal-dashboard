@@ -18,6 +18,7 @@ import sys
 
 import uvicorn
 
+from btcreport import config
 from btcreport.config import OWNER_KEY, SERVER_HOST, SERVER_PID_FILE, SERVER_PORT
 from btcreport.server import bot, keepalive, scheduler, tunnel
 from btcreport.server.app import app
@@ -34,6 +35,9 @@ def parse_args(argv=None):
                    help="Không mở ra internet, chỉ chạy nội bộ / LAN")
     p.add_argument("--allow-sleep", action="store_true",
                    help="Không giữ máy thức (web sẽ sập khi máy ngủ)")
+    p.add_argument("--sleep-on-off", action="store_true",
+                   help="/off nhả luôn keep-alive cho máy ngủ. Đổi lại có lúc gõ /on "
+                        "không ai trả lời, phải về mở laptop.")
     return p.parse_args(argv)
 
 
@@ -71,6 +75,7 @@ async def serve(args):
     if not args.no_tunnel:
         STATE.tunnel_url = await asyncio.get_running_loop().run_in_executor(
             None, tunnel.start, args.port)
+        STATE.last_tunnel_url = STATE.tunnel_url
     else:
         print("  [tunnel] Bỏ qua theo yêu cầu (--no-tunnel).")
 
@@ -122,6 +127,12 @@ def main(argv=None):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
     args = parse_args(argv)
+
+    # Gán vào config chứ không truyền tay qua nhiều tầng. power.py đọc config.X tại
+    # thời điểm gọi nên phải gán TRƯỚC khi serve() chạy.
+    if args.sleep_on_off:
+        config.SLEEP_ON_OFF = True
+
     write_pid()
 
     def on_signal(signum, frame):

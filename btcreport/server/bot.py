@@ -97,10 +97,17 @@ def _fmt_duration(seconds):
 
 def _cmd_status():
     s = STATE.public()["status"]
+    if s["standby"]:
+        muc = "🔌 ĐANG NGHỈ – link công khai đã đóng (/on để bật lại)"
+    elif s["paused"]:
+        muc = "⏸ ĐANG TẠM DỪNG quét (web vẫn sống)"
+    else:
+        muc = "▶️ Đang chạy bình thường"
+
     lines = [
         "📊 Trạng thái server", "",
         f"⏱ Sống được: {_fmt_duration(s['uptime_seconds'])}",
-        f"{'⏸ ĐANG TẠM DỪNG quét' if s['paused'] else '▶️ Đang quét bình thường'}",
+        muc,
         f"👀 Tab đang mở: {s['viewers']}",
         "",
         f"💰 Giá cập nhật:  {s['last_price_at'] or '—'}",
@@ -136,14 +143,52 @@ def _cmd_guests():
 
 HELP = """🤖 Lệnh điều khiển
 
+📊 Xem
 /status  – trạng thái server
 /url     – link công khai hiện tại
 /scan    – quét ngay, không đợi chu kỳ
-/pause   – tạm dừng quét (web vẫn sống)
-/resume  – chạy lại
 /guests  – ai đang có quyền xem
 /revoke <id> – cắt quyền một khách
-/stop    – tắt hẳn server"""
+
+⏸ Dừng quét (web + link vẫn sống)
+/pause   /resume
+
+🔌 Nghỉ hẳn (đóng link công khai, bot vẫn nghe)
+/off     /on
+
+🛑 Tắt tiến trình – chỉ bật lại được từ chính máy
+/stop"""
+
+
+def _cmd_off_text(res):
+    if not res["changed"]:
+        return "Server đang nghỉ sẵn rồi. /on để bật lại."
+    lines = ["🔌 Server đã nghỉ.", "",
+             "• Link công khai đã đóng, khách ngoài không vào được",
+             "• Đã dừng quét tín hiệu và dựng báo cáo"]
+    if res.get("keepalive_released"):
+        lines += ["• Đã nhả keep-alive – máy được ngủ",
+                  "",
+                  "⚠️ Máy ngủ là bot không nghe được nữa. Gõ /on lúc đó sẽ rơi vào "
+                  "khoảng không, phải về mở laptop."]
+    else:
+        lines += ["• Máy vẫn thức để bot còn nghe được /on"]
+    return "\n".join(lines + ["", "/on để bật lại."])
+
+
+def _cmd_on_text(res):
+    if not res["changed"]:
+        return "Server đang chạy sẵn rồi."
+    if not res.get("url"):
+        return ("▶️ Đã bật lại, nhưng KHÔNG mở được link công khai.\n"
+                "Server chỉ chạy nội bộ. Xem log để biết vì sao.")
+    lines = ["▶️ Server đã bật lại.", "", f"🌍 {res['url']}"]
+    if res.get("url_changed"):
+        lines += ["",
+                  "⚠️ LINK ĐÃ ĐỔI so với trước khi nghỉ. Khách đã duyệt sẽ bấm vào "
+                  f"link cũ là vào chỗ chết – phải gửi lại link này cho họ.\n"
+                  f"(provider {res.get('provider')} không giữ URL cố định)"]
+    return "\n".join(lines)
 
 
 async def _handle_command(text, chat_id):
@@ -190,10 +235,24 @@ async def _handle_command(text, chat_id):
         except Exception as e:
             send(f"Quét lỗi: {type(e).__name__}: {e}", chat_id)
 
+    elif cmd == "/off":
+        from .power import standby
+        send(_cmd_off_text(await standby()), chat_id)
+
+    elif cmd == "/on":
+        send("⏳ Đang bật lại, mở tunnel có thể mất vài giây...", chat_id)
+        from .power import wake
+        send(_cmd_on_text(await wake()), chat_id)
+
     elif cmd == "/stop":
-        send("🛑 Đang tắt server...", chat_id)
-        if _stop_event:
-            _stop_event.set()
+        # KHÔNG tắt ngay. Đây là lệnh duy nhất không hoàn tác được từ điện thoại:
+        # tiến trình chết là bot chết theo, phải mò về máy mới bật lại được.
+        send("🛑 Tắt hẳn tiến trình?\n\n"
+             "Bot sẽ chết theo, KHÔNG bật lại được từ Telegram nữa – phải về chính máy.\n"
+             "Chỉ muốn đóng link công khai thì dùng /off.",
+             chat_id,
+             buttons=[[{"text": "🛑 Tắt hẳn", "callback_data": "halt:yes"},
+                       {"text": "Huỷ",        "callback_data": "halt:no"}]])
 
     else:
         send(f"Không hiểu lệnh {cmd}.\n\n{HELP}", chat_id)
@@ -213,6 +272,19 @@ def _handle_callback(cb):
         return
 
     action, _, req_id = data.partition(":")
+
+    # Xác nhận tắt hẳn – nằm SAU cửa kiểm is_owner ở trên, không phải trước
+    if action == "halt":
+        if req_id == "yes":
+            _answer_callback(cb_id, "Đang tắt")
+            _edit_text(chat_id, msg_id, "🛑 Đang tắt server. Hẹn gặp lại.")
+            if _stop_event:
+                _stop_event.set()
+        else:
+            _answer_callback(cb_id, "Đã huỷ")
+            _edit_text(chat_id, msg_id, "Đã huỷ, server vẫn chạy.")
+        return
+
     req = access.get_request(req_id)
     who = req["name"] if req else req_id
 

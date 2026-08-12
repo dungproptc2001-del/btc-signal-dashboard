@@ -73,7 +73,7 @@
 
 <div class="header">
   <h1>bitcoin-report · Cấu trúc code</h1>
-  <p>Web dashboard + engine phân tích BTC · 2.773 dòng Python trong 24 module · 203 test</p>
+  <p>Web dashboard + engine phân tích BTC · 2.975 dòng Python trong 25 module · 233 test</p>
 </div>
 
 <div class="wrap">
@@ -450,15 +450,17 @@ Duyệt → cookie 7 ngày, trang khách tự vào dashboard</div>
         <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/access.py</td>
             <td>Phiên 7 ngày, yêu cầu truy cập, duyệt/từ chối/thu hồi, chống spam. Mọi đặc quyền qua <code>is_owner()</code>.</td><td class="n">270</td></tr>
         <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/bot.py</td>
-            <td>Long-poll <code>getUpdates</code>: nút Duyệt/Từ chối + lệnh <code>/status /url /pause /scan /guests /stop</code>.</td><td class="n">299</td></tr>
+            <td>Long-poll <code>getUpdates</code>: nút Duyệt/Từ chối + lệnh <code>/status /url /pause /off /on /scan /guests /stop</code>. <code>/stop</code> hỏi lại bằng nút.</td><td class="n">371</td></tr>
+        <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/power.py</td>
+            <td><code>/off</code> <code>/on</code>: nghỉ và bật lại mà <b>không</b> giết tiến trình — giết là mất luôn tai nghe Telegram. Khoá chống gọi chồng.</td><td class="n">94</td></tr>
         <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/scheduler.py</td>
-            <td>Ba nhịp nền: giá 30 giây, quét 15 phút, báo cáo 4 tiếng. Call chặn đẩy qua threadpool.</td><td class="n">171</td></tr>
+            <td>Ba nhịp nền: giá 30 giây, quét 15 phút, báo cáo 4 tiếng. Call chặn đẩy qua threadpool.</td><td class="n">179</td></tr>
         <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/state.py</td>
-            <td>Cache RAM + kênh SSE. <code>public()</code> là cửa duy nhất dữ liệu ra web.</td><td class="n">129</td></tr>
+            <td>Cache RAM + kênh SSE. <code>public()</code> là cửa duy nhất dữ liệu ra web.</td><td class="n">135</td></tr>
         <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/tunnel.py</td>
             <td>Mở server ra internet. <code>tailscale</code> (URL cố định) hoặc <code>cloudflare</code> (URL đổi mỗi lần chạy). Tunnel hỏng không được làm sập server.</td><td class="n">210</td></tr>
         <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/keepalive.py</td>
-            <td><code>SetThreadExecutionState</code> — giữ máy thức đúng lúc server chạy, không sửa power plan.</td><td class="n">67</td></tr>
+            <td><code>SetThreadExecutionState</code> — giữ máy thức đúng lúc server chạy, không sửa power plan.</td><td class="n">73</td></tr>
         <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/static/dashboard.js</td>
             <td>Nhận SSE, nhấp nháy giá khi đổi, đếm ngược lần quét, tự nối lại khi đứt.</td><td class="n">175</td></tr>
         <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/static/dashboard.css</td>
@@ -467,7 +469,7 @@ Duyệt → cookie 7 ngày, trang khách tự vào dashboard</div>
             <td><code>dashboard.html</code> · <code>request_access.html</code> (form + poll trạng thái).</td><td class="n">155</td></tr>
 
         <tr><td><span class="tag t-app">apps</span></td><td class="mod">apps/server.py</td>
-            <td>keepalive → tunnel → scheduler → bot → uvicorn. Tắt thì ngược lại, dọn sạch.</td><td class="n">151</td></tr>
+            <td>keepalive → tunnel → scheduler → bot → uvicorn. Tắt thì ngược lại, dọn sạch.</td><td class="n">162</td></tr>
         <tr><td><span class="tag t-app">apps</span></td><td class="mod">apps/report.py</td>
             <td>Gọi <code>service/report</code>, ghi file, Telegram, mở browser.</td><td class="n">50</td></tr>
         <tr><td><span class="tag t-app">apps</span></td><td class="mod">apps/monitor.py</td>
@@ -528,7 +530,7 @@ save_state()             os.replace atomic</div>
 
 <!-- ─────────────── TEST ─────────────── -->
 <section>
-  <h2>Bộ test · 203 test, chạy offline</h2>
+  <h2>Bộ test · 233 test, chạy offline</h2>
   <div class="card scroll">
     <table>
       <thead><tr><th>File</th><th>Kiểm</th><th style="text-align:right">Dòng</th></tr></thead>
