@@ -23,6 +23,79 @@
     });
   }
 
+  // ── Nhật ký tín hiệu ───────────────────────────────────────────────────────
+  var feed = [];
+
+  function esc(s) {
+    return String(s === null || s === undefined ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function gioVN(iso) {
+    // Chuỗi đã kèm offset +07:00 nên cắt thẳng, KHÔNG qua new Date():
+    // qua Date là trình duyệt đổi sang múi giờ của khách, sai ý "giờ Việt Nam".
+    if (!iso) return '—';
+    var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(iso);
+    return m ? (m[4] + ':' + m[5] + ' ' + m[3] + '/' + m[2]) : iso;
+  }
+
+  function truoc(iso) {
+    if (!iso) return '';
+    var s = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
+    if (s < 60) return 'vừa xong';
+    if (s < 3600) return Math.floor(s / 60) + ' phút trước';
+    if (s < 86400) return Math.floor(s / 3600) + ' giờ trước';
+    return Math.floor(s / 86400) + ' ngày trước';
+  }
+
+  function dongTinHieu(e, i, moi) {
+    var tre = '';
+    if (e.first_seen_at && e.first_seen_at !== e.at) {
+      var p = Math.round((new Date(e.at) - new Date(e.first_seen_at)) / 60000);
+      if (p > 0) tre = ' <span class="ago">(thấy từ ' + gioVN(e.first_seen_at) +
+                       ', xác nhận sau ' + p + 'p)</span>';
+    }
+    return '' +
+      '<div class="sig' + (moi ? ' new' : '') + '" data-i="' + i + '">' +
+        '<span class="t">' + gioVN(e.at) + '</span>' +
+        '<span class="sym">' + esc(e.name) + '</span>' +
+        (e.from ? '<span class="arrow">' + esc(e.from) + ' →</span>' : '') +
+        '<span class="tag ' + slug(e.to) + '">' + esc(e.to || '—') + '</span>' +
+        (e.telegram_ok === false
+          ? '<span class="warn">⚠ Telegram lỗi</span>' : '') +
+        '<span class="px">' + usd(e.price, 2) + '</span>' +
+        '<span class="ago">' + truoc(e.at) + '</span>' +
+      '</div>' +
+      '<div class="sig-detail" data-d="' + i + '"><pre>' + esc(e.text) + tre + '</pre></div>';
+  }
+
+  function renderFeed(iMoi) {
+    var host = $('signals-list');
+    if (!host) return;
+    if (!feed.length) {
+      host.innerHTML = '<div class="signals-empty">Chưa có tín hiệu nào. ' +
+        'Nhật ký bắt đầu từ lúc bật tính năng này – không có lịch sử cũ.</div>';
+      return;
+    }
+    host.innerHTML = feed.map(function (e, i) {
+      return dongTinHieu(e, i, iMoi !== undefined && i < iMoi);
+    }).join('');
+  }
+
+  document.addEventListener('click', function (ev) {
+    var row = ev.target.closest ? ev.target.closest('.sig') : null;
+    if (!row) return;
+    var d = document.querySelector('.sig-detail[data-d="' + row.dataset.i + '"]');
+    if (d) d.classList.toggle('open');
+  });
+
+  function tailFeed() {
+    fetch('/api/signals/history?limit=20', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : { entries: [] }; })
+      .then(function (d) { feed = d.entries || []; renderFeed(); })
+      .catch(function () { /* feed hỏng không được làm sập cả trang */ });
+  }
+
   function renderSymbols() {
     var host = $('cards');
     host.innerHTML = state.symbols.map(function (s) {
@@ -159,6 +232,11 @@
         $('st-alert').textContent = '⚡ ' +
           d.alerts.map(function (a) { return a.name; }).join(', ') + ' vừa đổi tín hiệu';
       }
+      // Tín hiệu mới chèn lên đầu nhật ký kèm nháy sáng, không cần reload
+      if (d.entries && d.entries.length) {
+        feed = d.entries.slice().reverse().concat(feed).slice(0, 20);
+        renderFeed(d.entries.length);
+      }
     });
 
     es.addEventListener('report', function (e) {
@@ -179,7 +257,9 @@
 
   renderSymbols();
   renderStatus();
+  tailFeed();
   state.symbols.forEach(function (s) { lastPrice[s.symbol] = s.price; });
   connect();
   setInterval(tickCountdown, 1000);
+  setInterval(function () { if (feed.length) renderFeed(); }, 60000);  // làm mới "2 giờ trước"
 })();

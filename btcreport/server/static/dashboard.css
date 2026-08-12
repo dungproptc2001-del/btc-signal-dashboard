@@ -78,6 +78,43 @@ a.badge:hover{border-color:var(--amber);color:var(--amber)}
                 line-height:1.6}
 .standby-banner b{color:var(--amber)}
 
+/* ── Nhật ký tín hiệu ─────────────────────────────────────────────────────── */
+.signals{margin:26px 0 8px}
+.signals-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.signals-head h2{font-size:.95rem;font-weight:800;color:#cbd5e1;letter-spacing:.3px}
+.signals-head .hint{font-size:.73rem;color:var(--dim)}
+
+.signals-list{border:1px solid var(--line);border-radius:12px;overflow:hidden;
+              background:var(--card)}
+.signals-empty{padding:22px;text-align:center;color:var(--dim);font-size:.82rem}
+
+.sig{border-bottom:1px solid var(--line);padding:11px 15px;cursor:pointer;
+     display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:.82rem}
+.sig:last-child{border-bottom:none}
+.sig:hover{background:#1e293b33}
+.sig.new{animation:sigflash 2.4s ease-out}
+@keyframes sigflash{from{background:#f59e0b33}to{background:transparent}}
+
+.sig .t{color:var(--mut);font-variant-numeric:tabular-nums;white-space:nowrap}
+.sig .sym{font-weight:800;color:#cbd5e1;min-width:38px}
+.sig .arrow{color:var(--dim)}
+.sig .px{margin-left:auto;color:var(--mut);font-variant-numeric:tabular-nums;
+         white-space:nowrap}
+.sig .ago{color:var(--dim);font-size:.75rem;white-space:nowrap}
+.sig .warn{color:var(--red2);font-size:.72rem}
+
+.tag{padding:2px 8px;border-radius:5px;font-size:.72rem;font-weight:800;
+     white-space:nowrap}
+.tag.long{background:#00c85322;color:var(--green2)}
+.tag.short{background:#d5000022;color:var(--red2)}
+.tag.neutral{background:#64748b22;color:#94a3b8}
+
+.sig-detail{display:none;padding:0 15px 14px;border-bottom:1px solid var(--line)}
+.sig-detail.open{display:block}
+.sig-detail pre{background:#0a0e1a;border:1px solid var(--line);border-radius:8px;
+                padding:13px;font-size:.76rem;color:#94a3b8;white-space:pre-wrap;
+                word-break:break-word;font-family:inherit;line-height:1.6}
+
 .foot{text-align:center;padding:26px;color:#334155;font-size:.76rem}
 
 /* ── Trang xin quyền ── */
