@@ -402,7 +402,7 @@ Máy dùng S0 Modern Standby, ngủ sau 5 phút. `SetThreadExecutionState` chỉ
 
 ## Bộ test
 
-339 test chạy trên fixtures đóng băng — không mạng, không phụ thuộc giá.
+340 test chạy trên fixtures đóng băng — không mạng, không phụ thuộc giá.
 
 | File | Số | Kiểm |
 |---|---|---|
@@ -414,7 +414,7 @@ Máy dùng S0 Modern Standby, ngủ sau 5 phút. `SetThreadExecutionState` chỉ
 | `test_journal.py` | 21 | Ghi nối, lọc loại alert, khoá `id` suy được từ bản ghi cũ |
 | `test_indicators.py` | 21 | Công thức đúng trên chuỗi tính tay + khớp golden trên dữ liệu thật |
 | `test_context.py` | 19 | Context khớp golden + **không rò rỉ HTML/màu** |
-| `test_heartbeat.py` | 18 | `stale` bật đúng lúc, `/off` không bị coi là chết, nhịp chết được dựng lại |
+| `test_heartbeat.py` | 19 | `stale` bật đúng lúc, `/off` không bị coi là chết, nhịp chết được dựng lại |
 | `test_power.py` | 15 | `/off` `/on` không giết tiến trình, khoá chống gọi chồng |
 | `test_bot.py` | 15 | Lệnh điều khiển qua cửa kiểm `is_owner` |
 | `test_render.py` | 14 | Render đủ thành phần, không sót cú pháp Jinja |

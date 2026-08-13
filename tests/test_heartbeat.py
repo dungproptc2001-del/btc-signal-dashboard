@@ -246,6 +246,22 @@ def test_js_khong_parse_moc_quet_thanh_thoi_gian_tuyet_doi():
     assert "scan_age_seconds" in js and "markAge" in js
 
 
+def test_js_khong_tu_sinh_moc_thoi_gian_bang_dong_ho_trinh_duyet():
+    """Mọi mốc hiện trên thanh trạng thái phải là đồng hồ SERVER.
+
+    `new Date().toISOString()` ra giờ UTC. Trang mở lên hiện đúng giờ VN vì server gửi
+    xuống, rồi 30 giây sau nhịp giá đầu tiên về là con số nhảy lùi 7 tiếng và nằm luôn
+    ở đó — sai cho tất cả mọi người, kể cả người ngồi ngay cạnh cái máy chủ.
+    """
+    js = (app_module.STATIC / "dashboard.js").read_text(encoding="utf-8")
+
+    # Bóc chú thích trước khi soi. Không bóc thì test này đỏ vì đúng cái comment giải
+    # thích lỗi cũ – grep trúng mã nguồn thay vì thứ đang chạy, đúng loại nhầm đã làm
+    # hỏng một lần nghiệm thu trước đây.
+    ma = "\n".join(d for d in js.splitlines() if not d.strip().startswith("//"))
+    assert "toISOString" not in ma
+
+
 @pytest.mark.asyncio
 async def test_watch_loop_khong_chet_theo_loi_ben_trong(monkeypatch, gia_lap_nhip):
     """Vòng canh mà chết theo thì không còn ai canh. Nó phải nuốt mọi lỗi."""

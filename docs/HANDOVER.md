@@ -20,7 +20,7 @@ dựng báo cáo 4 tiếng. Tự host trên laptop, mở ra internet, người l
 | Trong máy | `http://localhost:8000` — vào thẳng, không cần đăng nhập |
 | Tự bật | Task Scheduler `BTC Web Server`, trigger AtLogOn |
 | Desktop | 5 shortcut: Bật · Tắt · Trạng thái · Dashboard · Link công khai |
-| Test | 339, chạy offline trên fixture đóng băng |
+| Test | 340, chạy offline trên fixture đóng băng |
 | Ranh giới 6 tầng | 0 vi phạm (quét AST) |
 | Người canh | GitHub Actions gọi `/healthz` mỗi giờ, hỏng 3 lượt thì mở issue |
 
@@ -90,7 +90,6 @@ của nhau. Xoá file đó là vòng quét coi như chạy lần đầu, bắn l
 |---|---|
 | Ưu tiên 3: watchdog tự khởi động lại sau crash | Chưa có plan. Bài toán *chữa*, khác với đợt 5 lo *biết* |
 | Chưa đo chu kỳ ngủ/thức thật của Windows | Long-poll có sống sót không. Chỉ ảnh hưởng cờ `--sleep-on-off`, không ảnh hưởng mặc định |
-| `st-price` hiện giờ UTC chứ không phải giờ VN | `dashboard.js` gán `new Date().toISOString()` rồi cắt phần giờ. Sai cỡ 7 tiếng, chỉ ở dòng "Giá cập nhật". Lỗi có sẵn, chưa sửa vì ngoài phạm vi đợt 5 |
 | Task cũ `BTC 4H Report` | Cần quyền admin để dọn: `schtasks /delete /tn "BTC 4H Report" /f`. Nó trỏ vào file đã xoá nên chỉ fail vô hại |
 | `OWNER_KEY` chưa cố định trong `.env` | Đặt cố định thì có bookmark vĩnh viễn tự đăng nhập. Đổi lại là mật khẩu nằm trong URL |
 | Report và monitor cho confluence khác nhau | Report lấy 26 nến tuần, monitor lấy 52 → verdict khung 1W lệch. Có từ trước refactor, chưa thống nhất |

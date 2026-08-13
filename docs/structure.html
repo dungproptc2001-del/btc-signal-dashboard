@@ -73,7 +73,7 @@
 
 <div class="header">
   <h1>bitcoin-report · Cấu trúc code</h1>
-  <p>Web dashboard + engine phân tích BTC · 3.700 dòng Python trong 28 module · 339 test</p>
+  <p>Web dashboard + engine phân tích BTC · 3.700 dòng Python trong 28 module · 340 test</p>
 </div>
 
 <div class="wrap">
@@ -469,7 +469,7 @@ Duyệt → cookie 7 ngày, trang khách tự vào dashboard</div>
         <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/keepalive.py</td>
             <td><code>SetThreadExecutionState</code> — giữ máy thức đúng lúc server chạy, không sửa power plan.</td><td class="n">73</td></tr>
         <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/static/dashboard.js</td>
-            <td>Nhận SSE, nhấp nháy giá khi đổi, đếm ngược lần quét, tự nối lại khi đứt. Tỷ lệ thắng do <b>server</b> quyết định có hiện hay không. Tuổi dữ liệu đếm bằng <b>số giây</b>, không parse mốc — parse là khách khác múi giờ thấy báo động giả.</td><td class="n">386</td></tr>
+            <td>Nhận SSE, nhấp nháy giá khi đổi, đếm ngược lần quét, tự nối lại khi đứt. Tỷ lệ thắng do <b>server</b> quyết định có hiện hay không. Tuổi dữ liệu đếm bằng <b>số giây</b>, không parse mốc — parse là khách khác múi giờ thấy báo động giả. Mốc giờ lấy của server, không sinh bằng đồng hồ trình duyệt.</td><td class="n">392</td></tr>
         <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/static/dashboard.css</td>
             <td>Kiểu dáng dashboard + trang xin quyền. Băng đỏ (hỏng) khác băng vàng (chủ động nghỉ).</td><td class="n">189</td></tr>
         <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/templates/*.html</td>
@@ -557,7 +557,7 @@ save_state()             os.replace atomic</div>
         <tr><td class="mod">test_bot.py</td><td>Lệnh điều khiển, xác nhận <code>/stop</code> bằng nút, chat lạ bị chặn</td><td class="n">119</td></tr>
         <tr><td class="mod">test_access.py</td><td>Hết hạn, thu hồi, chống spam, và <b>chat_id lạ không duyệt được</b></td><td class="n">250</td></tr>
         <tr><td class="mod">test_api.py</td><td>401 khi chưa có quyền, không rò rỉ secret, <b>không giả mạo được chủ nhà</b>, CSS/JS nhúng <b>không bị autoescape</b></td><td class="n">432</td></tr>
-        <tr><td class="mod">test_heartbeat.py</td><td><code>stale</code> bật đúng lúc và <b>không</b> bật khi chủ động <code>/off</code>, nhịp nền chết được dựng lại còn nhịp bị huỷ thì để yên</td><td class="n">262</td></tr>
+        <tr><td class="mod">test_heartbeat.py</td><td><code>stale</code> bật đúng lúc và <b>không</b> bật khi chủ động <code>/off</code>, nhịp nền chết được dựng lại còn nhịp bị huỷ thì để yên</td><td class="n">278</td></tr>
       </tbody>
     </table>
     <p class="note">

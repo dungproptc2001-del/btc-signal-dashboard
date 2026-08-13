@@ -311,9 +311,10 @@
     });
 
     es.addEventListener('price', function (e) {
-      var d = JSON.parse(e.data);
+      var d = JSON.parse(e.data), moc = null;
       Object.keys(d.prices).forEach(function (sym) {
         var p = d.prices[sym];
+        if (p.at) moc = p.at;
         flashPrice(sym, p.last);
         var c = $('c-' + sym);
         if (c) {
@@ -324,7 +325,12 @@
         var row = state.symbols.filter(function (s) { return s.symbol === sym; })[0];
         if (row) { row.price = p.last; row.change_24h = p.change_24h; }
       });
-      state.status.last_price_at = new Date().toISOString().slice(0, 19);
+      // Lấy mốc SERVER gửi kèm, không tự sinh bằng đồng hồ trình duyệt.
+      // Trước đây là `new Date().toISOString()` — giờ UTC. Mở trang thì hiện đúng giờ
+      // VN (server gửi xuống), 30 giây sau nhịp giá đầu tiên về là con số nhảy lùi 7
+      // tiếng rồi nằm luôn ở đó. Sai cho tất cả mọi người chứ không riêng ai ở múi
+      // giờ khác. Server đã gửi sẵn `at` trong từng mã, dùng luôn là hết chuyện.
+      if (moc) state.status.last_price_at = moc;
       renderStatus();
     });
 

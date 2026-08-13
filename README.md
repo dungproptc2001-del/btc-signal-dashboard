@@ -395,7 +395,7 @@ refactor, chưa thống nhất.
 
 ```powershell
 pip install -r requirements-dev.txt
-python -m pytest tests -q                # 339 test
+python -m pytest tests -q                # 340 test
 ```
 
 Test chạy trên **fixtures đóng băng** trong `tests/fixtures/` — không gọi mạng, không
