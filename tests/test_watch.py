@@ -175,6 +175,67 @@ def test_pending_since_dat_luc_bat_dau_cho_va_khong_bi_reset():
     assert scans[0][0]["pending_since"] == moc, "mốc phải giữ nguyên, không bị ghi đè"
 
 
+# ── SL/TP THEO HƯỚNG CONFLUENCE ───────────────────────────────────────────────
+@pytest.fixture
+def gia_lap_nguon(monkeypatch):
+    """get_snapshot thật, nhưng verdict từng khung do test đặt.
+
+    Giữ nguyên `confluence()` và `risk_levels()` thật – nếu mock cả hai thì test chỉ
+    còn kiểm chính cái mock của mình.
+    """
+    from btcreport.service import watch
+
+    nen = [{"ts": i * 1000, "open": 100.0, "high": 104.0, "low": 96.0,
+            "close": 100.0, "volume": 10.0} for i in range(100)]
+    monkeypatch.setattr(watch, "fetch_klines", lambda *a: nen)
+    monkeypatch.setattr(watch, "fetch_ticker",
+                        lambda s: {"lastPrice": "100.0", "priceChangePercent": "1.0"})
+
+    def dat(**theo_khung):
+        monkeypatch.setattr(watch, "analyze_timeframe", lambda label, candles: {
+            "label": label, "verdict": theo_khung[label], "action": "", "score": 0,
+            "rsi": 50.0, "macd": 0.0, "macd_signal": 0.0, "macd_bull": False,
+        })
+        ok, snap = watch.get_snapshot("BTCUSDT")
+        assert ok
+        return snap
+
+    return dat
+
+
+def test_sl_tp_theo_confluence_chu_khong_theo_4H(gia_lap_nguon):
+    """Chuyện đã xảy ra thật: 12/08/2026 PAXG báo LONG BIAS lên Telegram trong khi
+    khung 4H đang NEUTRAL → sl=tp=None, tín hiệu có hướng mà không kèm mức nào.
+
+    Chấm điểm mà không sửa chỗ này thì con số ra được không biết đang đo gì.
+    """
+    snap = gia_lap_nguon(**{"1W": "LONG", "1D": "LONG", "4H": "NEUTRAL", "1H": "NEUTRAL"})
+
+    assert snap["confluence"]["verdict"] == "LONG BIAS"
+    assert snap["timeframes"][2]["verdict"] == "NEUTRAL", "khung 4H vẫn NEUTRAL"
+    assert snap["risk"]["sl"] is not None, "đã báo có hướng thì phải kèm mức"
+    assert snap["risk"]["sl"] < snap["risk"]["entry"] < snap["risk"]["tp"]
+
+
+def test_4H_nguoc_huong_confluence_thi_muc_theo_confluence(gia_lap_nguon):
+    """Ca tệ nhất: SL/TP đặt ngược chiều tín hiệu được báo."""
+    snap = gia_lap_nguon(**{"1W": "SHORT", "1D": "SHORT", "4H": "LONG", "1H": "SHORT"})
+
+    assert snap["confluence"]["verdict"] == "STRONG SHORT"
+    assert snap["timeframes"][2]["verdict"] == "LONG"
+    assert snap["risk"]["tp"] < snap["risk"]["entry"] < snap["risk"]["sl"], \
+        "SHORT thì chốt lời nằm DƯỚI giá vào, dừng lỗ nằm trên"
+
+
+def test_confluence_neutral_thi_van_khong_de_xuat_gi(gia_lap_nguon):
+    """Đứng ngoài thì không đưa mức nào – vào lệnh khi chưa có hướng là tự bắn
+    vào chân, đúng như risk_levels() vẫn làm."""
+    snap = gia_lap_nguon(**{"1W": "LONG", "1D": "SHORT", "4H": "NEUTRAL", "1H": "NEUTRAL"})
+
+    assert snap["confluence"]["verdict"] == "NEUTRAL"
+    assert snap["risk"]["sl"] is None and snap["risk"]["tp"] is None
+
+
 def test_scan_khong_tu_gui_telegram(monkeypatch):
     """Bảo đảm scan_symbols thuần: nếu nó lỡ gọi send_telegram thì test này nổ."""
     import btcreport.notify.telegram as tg

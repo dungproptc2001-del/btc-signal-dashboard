@@ -64,8 +64,19 @@ SCAN_INTERVAL    = 15 * 60  # giây – quét mỗi 15 phút
 CONFIRM_SCANS    = 2        # confluence mới phải giữ đủ N lần quét mới alert
 MAX_CONSEC_FAILS = 4        # fetch lỗi liên tiếp bao nhiêu lần thì cảnh báo
 
+# ── CHẤM ĐIỂM TÍN HIỆU ───────────────────────────────────────────────────────
+SIGNAL_EXPIRY_DAYS = 7          # chưa chạm TP/SL sau ngần này ngày thì coi là hết hạn
+OUTCOME_PROBE_TF   = "1h"       # nến dùng để dò TP/SL
+OUTCOME_INTERVAL   = 30 * 60    # giây – nhịp chấm lại. Mịn hơn nến dò cũng vô ích.
+
+# Dưới ngưỡng này KHÔNG hiện tỷ lệ thắng, chỉ hiện số đếm thô.
+# 3 mã, ~10-30 tín hiệu/tháng: tỷ lệ trên n=12 là nhiễu chứ không phải kết luận,
+# mà một con số thuyết phục sai còn tệ hơn là không có con số nào.
+STATS_MIN_N = 20
+
 # ── FILE RUNTIME ─────────────────────────────────────────────────────────────
 STATE_FILE  = DATA_DIR / "last_signals.json"
+OUTCOME_FILE = DATA_DIR / "outcomes.jsonl"
 PID_FILE    = DATA_DIR / "monitor.pid"
 REPORT_FILE = OUTPUT_DIR / "btc_report.html"
 

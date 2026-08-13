@@ -30,6 +30,19 @@ def _iso(dt):
     return dt.isoformat(timespec="seconds") if dt else None
 
 
+def signal_id(entry):
+    """Khoá định danh một tín hiệu, để gắn kết quả chấm điểm vào.
+
+    Suy được từ `(symbol, at)` nên bản ghi CŨ – ghi từ trước khi có trường `id` –
+    vẫn khoá ra đúng cùng một giá trị. Không phải sửa file lịch sử, mà file lịch sử
+    thì đã hứa là bất biến.
+
+    Duy nhất vì một mã không thể bắn hai tín hiệu trong cùng một giây: debounce giữ
+    tối thiểu CONFIRM_SCANS lượt quét mới cho báo lại.
+    """
+    return entry.get("id") or f'{entry.get("symbol")}@{entry.get("at")}'
+
+
 def append(alert, *, telegram_ok=None, now=None, path=None):
     """Ghi một tín hiệu. Trả bản ghi, hoặc None nếu không phải tín hiệu mua/bán.
 
@@ -44,6 +57,7 @@ def append(alert, *, telegram_ok=None, now=None, path=None):
     at   = now or now_vn()
 
     entry = {
+        "id":            f'{alert.get("symbol")}@{_iso(at)}',
         "at":            _iso(at),
         "first_seen_at": alert.get("pending_since") or _iso(at),
         "symbol":        alert.get("symbol"),

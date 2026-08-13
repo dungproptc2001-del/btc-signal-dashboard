@@ -103,6 +103,22 @@ def confluence(verdicts):
     return {"verdict": verdict, "agree": max(lc, sc)}
 
 
+def direction(confluence_verdict):
+    """Rút hướng hành động ra khỏi verdict confluence.
+
+    BIAS cũng là có hướng. Confluence 2/4 khung đồng thuận vẫn được báo lên Telegram
+    như một tín hiệu, nên nó phải kèm mức vào/ra – báo hướng mà không nói dừng lỗ ở
+    đâu là nửa vời.
+
+    Verdict lạ trả NEUTRAL thay vì ném lỗi: hàm này nằm trên đường đi của mọi lượt
+    quét, một verdict mới thêm sau này không được phép làm câm cả monitor.
+    """
+    v = (confluence_verdict or "").upper()
+    if LONG  in v: return LONG
+    if SHORT in v: return SHORT
+    return NEUTRAL
+
+
 def confidence(score):
     """Chuẩn hoá |score| thành phần trăm cho thanh confidence."""
     return min(round(abs(score) / MAX_SCORE * 90) + 10, 100)

@@ -1,9 +1,10 @@
-"""Ba nhịp chạy nền của server.
+"""Bốn nhịp chạy nền của server.
 
 | Nhịp    | Chu kỳ   | Việc                                                    |
 |---------|----------|---------------------------------------------------------|
 | price   | 30 giây  | Ticker 3 mã → đẩy giá qua SSE, trang nhảy số liên tục    |
 | scan    | 15 phút  | Quét đủ 4 khung, debounce, gửi Telegram nếu đổi          |
+| score   | 30 phút  | Chấm tín hiệu cũ: chạm TP trước hay SL trước             |
 | report  | 4 tiếng  | Dựng lại báo cáo BTC, ghi file, gửi Telegram             |
 
 Mọi call chặn (requests) đẩy qua threadpool để không nghẽn event loop.
@@ -13,9 +14,11 @@ import asyncio
 import traceback
 from datetime import datetime
 
-from ..config import PRICE_INTERVAL, REPORT_INTERVAL, SCAN_INTERVAL, SYMBOLS
+from ..config import (
+    OUTCOME_INTERVAL, PRICE_INTERVAL, REPORT_INTERVAL, SCAN_INTERVAL, SYMBOLS,
+)
 from ..notify.telegram import send_telegram
-from ..service import journal
+from ..service import journal, outcome
 from ..service.report import build_report, save_report
 from ..service.watch import load_state, save_state, scan_symbols
 from ..sources.binance import fetch_ticker
@@ -117,6 +120,39 @@ async def scan_loop():
         await asyncio.sleep(SCAN_INTERVAL)
 
 
+# ── NHỊP CHẤM ĐIỂM ────────────────────────────────────────────────────────────
+def _score_once():
+    """Chấm những tín hiệu chưa ngã ngũ, ghi kết quả. Trả (số chấm, số ghi)."""
+    entries = journal.read()
+    results = outcome.evaluate(entries, log=log)
+    xong    = outcome.save(results)
+    return len(results), xong
+
+
+async def score_once():
+    """Một lượt chấm. Gọi được từ score_loop hoặc từ lệnh Telegram."""
+    _, xong = await _run(_score_once)
+    STATE.last_score_at = datetime.now()
+    if xong:
+        for r in xong:
+            log(f"  {r['id']}: {r['status']}" + (f"  R={r['r']}" if r.get("r") is not None else ""))
+        STATE.publish("outcome", {
+            "settled": [{k: r.get(k) for k in ("id", "symbol", "status", "r")} for r in xong],
+            "at":      STATE.last_score_at.isoformat(timespec="seconds"),
+        })
+    return xong
+
+
+async def score_loop():
+    while True:
+        if not STATE.paused:
+            try:
+                await score_once()
+            except Exception:
+                log("score_loop lỗi:\n" + traceback.format_exc())
+        await asyncio.sleep(OUTCOME_INTERVAL)
+
+
 # ── NHỊP BÁO CÁO ──────────────────────────────────────────────────────────────
 def _report_once():
     html, message, ctx = build_report(log=log)
@@ -171,9 +207,10 @@ async def start():
 
     _tasks.append(asyncio.create_task(price_loop()))
     _tasks.append(asyncio.create_task(scan_loop()))
+    _tasks.append(asyncio.create_task(score_loop()))
     _tasks.append(asyncio.create_task(report_loop()))
     log(f"Scheduler chạy: giá {PRICE_INTERVAL}s · quét {SCAN_INTERVAL // 60}m "
-        f"· báo cáo {REPORT_INTERVAL // 3600}h")
+        f"· chấm {OUTCOME_INTERVAL // 60}m · báo cáo {REPORT_INTERVAL // 3600}h")
 
 
 async def stop():

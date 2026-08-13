@@ -12,7 +12,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup
 
 from ..config import GUEST_TTL_DAYS, OWNER_KEY, SESSION_COOKIE
-from ..service import journal
+from ..service import journal, outcome
 from . import access, bot
 from .state import STATE
 
@@ -175,9 +175,32 @@ async def api_report():
 
 @app.get("/api/signals/history")
 async def api_history(limit: int = 50, symbol: str = ""):
-    """Nhật ký tín hiệu mua/bán. Khách đã duyệt xem được hết, như chủ nhà."""
-    limit = max(1, min(limit, 500))
-    return {"entries": journal.read(limit=limit, symbol=symbol or None)}
+    """Nhật ký tín hiệu mua/bán, kèm kết quả chấm điểm. Khách đã duyệt xem được hết.
+
+    Kết quả đọc từ file chứ không chấm tại chỗ – trang chủ không được phụ thuộc
+    Binance để mở lên được.
+    """
+    limit   = max(1, min(limit, 500))
+    entries = journal.read(limit=limit, symbol=symbol or None)
+    da_co   = outcome.read()
+    for e in entries:
+        # Chưa được chấm và đang chạy đều là "chưa ngã ngũ" – gộp thành `open` thay
+        # vì trả None, để giao diện không phải đoán ý nghĩa của một ô trống.
+        e["outcome"] = da_co.get(journal.signal_id(e)) or {"status": outcome.OPEN}
+    return {"entries": entries}
+
+
+@app.get("/api/signals/stats")
+async def api_stats(symbol: str = ""):
+    """Thống kê chấm điểm. Khách đã duyệt xem được, đồng bộ với lịch sử.
+
+    `win_rate` là None khi chưa đủ mẫu – giao diện KHÔNG được tự tính lấy từ
+    `counts`. Ẩn tỷ lệ lúc mẫu còn bé là một luật, không phải gợi ý.
+    """
+    entries  = journal.read(symbol=symbol or None)
+    _, tk    = outcome.load_all(entries)
+    tk["total_signals"] = len(entries)
+    return tk
 
 
 @app.get("/api/link")

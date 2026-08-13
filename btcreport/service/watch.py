@@ -14,7 +14,7 @@ from ..config import (
 )
 from ..engine.analysis import analyze_timeframe
 from ..engine.levels import risk_levels, support_resistance
-from ..engine.signals import confluence
+from ..engine.signals import confluence, direction
 from ..notify.messages import format_fetch_failure, format_monitor_alert
 from ..sources.binance import fetch_klines, fetch_ticker
 from .journal import TZ_VN
@@ -44,12 +44,21 @@ def get_snapshot(symbol):
 
         tfs = [analyze_timeframe("1W", weekly), analyze_timeframe("1D", daily),
                analyze_timeframe("4H", h4),     analyze_timeframe("1H", h1)]
+        conf = confluence([tf["verdict"] for tf in tfs])
 
         return True, {
-            "confluence": confluence([tf["verdict"] for tf in tfs]),
+            "confluence": conf,
             "timeframes": tfs,
             "levels":     support_resistance(h4),
-            "risk":       risk_levels(h4, tfs[2]["verdict"]),
+            # SL/TP theo hướng CONFLUENCE, không phải verdict khung 4H.
+            #
+            # Trước đây là `risk_levels(h4, tfs[2]["verdict"])`. Hai cái lệch nhau được,
+            # và đã lệch thật: 12/08/2026 PAXG báo LONG BIAS lên Telegram trong khi 4H
+            # đang NEUTRAL → sl=tp=None, tín hiệu có hướng mà không kèm mức nào. Tệ hơn
+            # là 4H ngược hướng confluence thì SL/TP chỉ ngược chiều tín hiệu.
+            #
+            # Chấm điểm mà không sửa chỗ này thì con số ra được không biết đang đo gì.
+            "risk":       risk_levels(h4, direction(conf["verdict"])),
             "price":      float(ticker["lastPrice"]),
             "change_24h": float(ticker["priceChangePercent"]),
         }

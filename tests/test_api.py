@@ -338,6 +338,87 @@ def test_limit_bi_kep_khong_cho_hut_ca_file(owner):
     assert owner.get("/api/signals/history?limit=-5").status_code == 200
 
 
+# ── CHẤM ĐIỂM TÍN HIỆU ────────────────────────────────────────────────────────
+@pytest.fixture
+def co_ket_qua(monkeypatch, tmp_path):
+    """Một nhật ký 2 tín hiệu, một cái đã chấm là THẮNG."""
+    from btcreport.service import journal, outcome
+
+    e1 = {"id": "BTCUSDT@2026-08-01T10:00:00+07:00", "at": "2026-08-01T10:00:00+07:00",
+          "symbol": "BTCUSDT", "name": "BTC", "to": "STRONG LONG", "price": 100.0,
+          "risk": {"entry": 100.0, "sl": 90.0, "tp": 120.0}, "text": "x"}
+    e2 = {**e1, "id": "ETHUSDT@2026-08-02T10:00:00+07:00",
+          "at": "2026-08-02T10:00:00+07:00", "symbol": "ETHUSDT", "name": "ETH"}
+
+    kq = tmp_path / "outcomes.jsonl"
+    outcome.save([{"id": e1["id"], "symbol": "BTCUSDT", "status": "win", "r": 2.0}],
+                 path=kq)
+    monkeypatch.setattr(outcome, "OUTCOME_FILE", kq)
+    monkeypatch.setattr(journal, "read",
+                        lambda limit=None, symbol=None, path=None: [e2, e1])
+    return e1, e2
+
+
+def test_lich_su_kem_ket_qua_cham_diem(owner, co_ket_qua):
+    es = {e["symbol"]: e for e in owner.get("/api/signals/history").json()["entries"]}
+    assert es["BTCUSDT"]["outcome"]["status"] == "win"
+    assert es["BTCUSDT"]["outcome"]["r"] == 2.0
+
+
+def test_chua_cham_thi_la_dang_chay_chu_khong_phai_o_trong(owner, co_ket_qua):
+    """Trả None thì giao diện phải đoán ý nghĩa của một ô trống."""
+    es = {e["symbol"]: e for e in owner.get("/api/signals/history").json()["entries"]}
+    assert es["ETHUSDT"]["outcome"] == {"status": "open"}
+
+
+def test_lich_su_KHONG_goi_mang(owner, co_ket_qua, monkeypatch):
+    """Trang chủ không được phụ thuộc Binance để mở lên được."""
+    from btcreport.service import outcome
+    monkeypatch.setattr(outcome, "fetch_klines_range",
+                        lambda *a: pytest.fail("không được gọi mạng"))
+    assert owner.get("/api/signals/history").status_code == 200
+    assert owner.get("/api/signals/stats").status_code == 200
+
+
+def test_thong_ke_khong_quyen_thi_401(guest):
+    assert guest.get("/api/signals/stats").status_code == 401
+
+
+def test_khach_da_duyet_xem_duoc_thong_ke(guest, monkeypatch, co_ket_qua):
+    """Đồng bộ với lịch sử: khách đã duyệt xem được hết."""
+    monkeypatch.setattr(access, "check_session",
+                        lambda t: {"name": "Khach", "owner": False})
+    guest.cookies.set(SESSION_COOKIE, "phien-khach-hop-le")
+    assert guest.get("/api/signals/stats").status_code == 200
+
+
+def test_thong_ke_AN_ty_le_khi_chua_du_mau(owner, co_ket_qua):
+    """Con số thuyết phục trên mẫu bé còn tệ hơn không có con số nào.
+
+    `win_rate` phải là None để giao diện không có gì mà hiện – không được trả 100%
+    rồi trông cậy vào frontend tự biết mà giấu đi.
+    """
+    tk = owner.get("/api/signals/stats").json()
+    o = tk["overall"]
+    assert o["win_rate"] is None
+    assert o["n"] == 1 and o["min_n"] > 1
+    assert o["counts"]["win"] == 1, "số đếm thô thì vẫn hiện"
+
+
+def test_thong_ke_tach_theo_ma(owner, co_ket_qua):
+    tk = owner.get("/api/signals/stats").json()
+    assert set(tk["by_symbol"]) == {"BTCUSDT", "ETHUSDT"}
+    assert tk["total_signals"] == 2
+
+
+def test_thong_ke_khong_lo_secret(owner, co_ket_qua):
+    from btcreport.config import TELEGRAM_BOT_TOKEN
+    body = json.dumps(owner.get("/api/signals/stats").json())
+    assert OWNER_KEY not in body
+    if TELEGRAM_BOT_TOKEN:
+        assert TELEGRAM_BOT_TOKEN not in body
+
+
 # ── BÁO CÁO ───────────────────────────────────────────────────────────────────
 def test_report_chua_co_thi_tra_503(owner):
     STATE.report_html = None
