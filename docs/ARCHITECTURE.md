@@ -154,7 +154,7 @@ có hẳn một test nổ nếu ai đó lỡ gọi `send_telegram` từ trong đ
 |---|---|
 | `app.py` | FastAPI: route, middleware gác cửa, SSE, luồng xin quyền. |
 | `state.py` | Cache RAM + kênh phát SSE. Mở trang không kích hoạt fetch. |
-| `scheduler.py` | Ba nhịp nền: giá 30 giây, quét 15 phút, báo cáo 4 tiếng. |
+| `scheduler.py` | Bốn nhịp nền: giá 30 giây, quét 15 phút, chấm điểm 30 phút, báo cáo 4 tiếng. |
 | `access.py` | Phiên, yêu cầu truy cập, duyệt/từ chối/thu hồi, chống spam. |
 | `bot.py` | Long-poll Telegram: nút Duyệt/Từ chối + lệnh điều khiển. |
 | `keepalive.py` | Giữ máy không ngủ trong lúc server chạy. |
@@ -166,6 +166,7 @@ Tầng `service/` có thêm:
 | File | Việc |
 |---|---|
 | `journal.py` | Nhật ký tín hiệu mua/bán ra `data/signals.jsonl`. Ở `service/` chứ không `server/` vì `apps/monitor.py` cũng quét — để ở `server/` thì chạy monitor tay là lịch sử thủng lỗ chỗ mà không ai biết. |
+| `outcome.py` | Chấm điểm tín hiệu: lấy nến 1H sau lúc bắn, xem chạm TP trước hay SL trước. Kết quả ra `data/outcomes.jsonl` **riêng**, để `signals.jsonl` giữ được lời hứa bất biến. |
 
 ### `apps/`
 
@@ -174,6 +175,7 @@ Tầng `service/` có thêm:
 | `server.py` | Bật keepalive → tunnel → scheduler → bot → uvicorn. Tắt thì ngược lại. |
 | `report.py` | Gọi `service/report`, ghi file, Telegram, mở browser. |
 | `monitor.py` | Vòng lặp 15 phút gọi `service/watch`, gửi alert. |
+| `score.py` | Chấm điểm tay. `--kho` để xem trước mà không ghi gì. |
 
 ---
 
@@ -209,24 +211,50 @@ với mỗi mã trong SYMBOLS:
 save_state()                       ghi atomic qua os.replace
 ```
 
-### Server (một process, ba nhịp)
+### Server (một process, bốn nhịp)
 
 ```
 apps/server.py
   ↓
 keepalive.hold()            giữ máy thức — không thì 5 phút nữa web sập
 tunnel.start()              → https://ten-may.tailXXXX.ts.net   (cố định)
-scheduler.start()           3 task asyncio, mọi call chặn đẩy qua threadpool
+scheduler.start()           4 task asyncio, mọi call chặn đẩy qua threadpool
 bot.poll_loop()             long-poll getUpdates
 uvicorn.serve()
   ↓
      30 giây → fetch_ticker × 3      → STATE.publish("price")
      15 phút → service.watch.scan    → Telegram + STATE.publish("signal")
+     30 phút → service.outcome.eval  → outcomes.jsonl + STATE.publish("outcome")
      4 tiếng → service.report.build  → file + Telegram + STATE.publish("report")
 ```
 
 Trình duyệt nối `/events` (SSE) và nhận đẩy, không polling. Mất kết nối thì tự nối
 lại sau 5 giây.
+
+---
+
+## Chấm điểm tín hiệu
+
+Hệ thống bắn tín hiệu từ đầu mà **chưa bao giờ tự chấm điểm**, nên mọi tham số đang
+được chỉnh bằng cảm giác. Nhịp `score` đóng lỗ hổng đó. Chi tiết đầy đủ ở
+[spec](spec/signal-outcome-spec.md); ba chỗ đáng nhớ:
+
+**SL/TP theo hướng confluence, không theo khung 4H.** Trước đây `watch.py` gọi
+`risk_levels(h4, tfs[2]["verdict"])` — mức tính theo verdict 4H trong khi tín hiệu bắn
+ra là confluence cả 4 khung. Hai cái lệch nhau được, và đã lệch thật: 12/08/2026 PAXG
+báo `LONG BIAS` lên Telegram trong khi 4H đang `NEUTRAL`, kết quả `sl = tp = None` —
+tín hiệu có hướng mà không kèm mức nào. Chấm điểm mà không sửa chỗ này thì con số ra
+được không biết đang đo gì.
+
+**Nến mở trước lúc bắn bị loại.** Một tín hiệu không thể bị đóng bởi giá xảy ra trước
+khi nó tồn tại. Nến chứa mốc `at` gần như luôn mở trước đó vài chục phút — không loại
+là bịa ra thắng/thua từ quá khứ, mà bịa theo hướng nào thì tuỳ hôm đó thị trường đi
+đâu, tức là một cái sai không có quy luật, nhìn con số không phát hiện được.
+
+**`expired` nằm trong mẫu số của tỷ lệ thắng.** Vứt nó đi là cách phổ biến nhất khiến
+loại thống kê này nói dối. Đi kèm: `win_rate` là `None` khi `n < 20`, và **server**
+quyết định điều đó chứ không phải frontend — ẩn tỷ lệ lúc mẫu bé là một luật, để ở
+giao diện thì nó sẽ lặng lẽ biến mất lần đầu ai đó sửa CSS.
 
 ---
 

@@ -78,6 +78,33 @@ a.badge:hover{border-color:var(--amber);color:var(--amber)}
                 line-height:1.6}
 .standby-banner b{color:var(--amber)}
 
+/* ── Chấm điểm tín hiệu ───────────────────────────────────────────────────── */
+.stats{margin:26px 0 8px}
+#stats-body{border:1px solid var(--line);border-radius:12px;overflow:hidden;
+            background:var(--card)}
+.stat-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+          padding:11px 15px;border-bottom:1px solid var(--line);font-size:.82rem}
+.stat-row .sym{font-weight:800;color:#cbd5e1;min-width:46px}
+.stat-row .sym.tong{color:var(--amber)}
+.stat-row .chips{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.ty-le{color:var(--mut)}
+.ty-le b{color:var(--tx);font-size:.95rem;font-variant-numeric:tabular-nums}
+/* Câu này phải đọc được, không phải chú thích mờ ở góc: nó là thứ ngăn người xem
+   tin vào một con số chưa đủ mẫu để nói lên điều gì. */
+.chua-du{color:#fcd34d;font-size:.78rem}
+.chua-du b{font-variant-numeric:tabular-nums}
+.stat-note{padding:10px 15px;color:var(--dim);font-size:.73rem;line-height:1.6}
+.stat-note b{color:var(--mut)}
+
+.oc{padding:2px 8px;border-radius:5px;font-size:.71rem;font-weight:700;
+    white-space:nowrap;font-variant-numeric:tabular-nums}
+.oc.win{background:#00c85322;color:var(--green2)}
+.oc.loss{background:#d5000022;color:var(--red2)}
+.oc.expired{background:#f59e0b1c;color:#fcd34d}
+.oc.superseded{background:#64748b22;color:#94a3b8}
+.oc.skipped{background:#33415522;color:var(--dim)}
+.oc.open{background:#38bdf81c;color:#7dd3fc}
+
 /* ── Nhật ký tín hiệu ─────────────────────────────────────────────────────── */
 .signals{margin:26px 0 8px}
 .signals-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:12px}

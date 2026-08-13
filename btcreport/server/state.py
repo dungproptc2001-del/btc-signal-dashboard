@@ -28,6 +28,7 @@ class ServerState:
         self.last_price_at  = None
         self.last_scan_at   = None
         self.last_report_at = None
+        self.last_score_at  = None
         self.scan_errors    = 0
         self._subscribers   = set()
 
@@ -121,6 +122,7 @@ class ServerState:
                     "last_price_at":   _iso(self.last_price_at),
                     "last_scan_at":    _iso(self.last_scan_at),
                     "last_report_at":  _iso(self.last_report_at),
+                    "last_score_at":   _iso(self.last_score_at),
                     "scan_interval":   SCAN_INTERVAL,
                     "price_interval":  PRICE_INTERVAL,
                     "has_report":      self.report_html is not None,

@@ -48,6 +48,74 @@
     return Math.floor(s / 86400) + ' ngày trước';
   }
 
+  // ── Chấm điểm ──────────────────────────────────────────────────────────────
+  var NHAN = {
+    win:        ['✓ Thắng',      'win'],
+    loss:       ['✗ Thua',       'loss'],
+    expired:    ['⌛ Hết hạn',    'expired'],
+    superseded: ['↺ Đổi hướng',  'superseded'],
+    skipped:    ['– Bỏ qua',     'skipped'],
+    open:       ['● Đang chạy',  'open']
+  };
+
+  function huyHieu(o) {
+    if (!o || !o.status) return '';
+    var n = NHAN[o.status] || [o.status, 'open'];
+    var r = (o.r === null || o.r === undefined) ? '' : ' ' + (o.r > 0 ? '+' : '') + o.r + 'R';
+    return '<span class="oc ' + n[1] + '">' + n[0] + r +
+           (o.ambiguous ? ' <b title="Một nến chạm cả TP lẫn SL – tính là thua">⚠</b>' : '') +
+           '</span>';
+  }
+
+  function khoi(tk, ten) {
+    var c = tk.counts || {};
+    var chip = function (k) {
+      var n = NHAN[k];
+      return '<span class="oc ' + n[1] + '">' + n[0] + ' <b>' + (c[k] || 0) + '</b></span>';
+    };
+
+    // Tỷ lệ do server quyết định có hiện hay không. KHÔNG tự tính lấy từ counts:
+    // ẩn tỷ lệ lúc mẫu còn bé là một luật, không phải gợi ý — và nếu tính ở đây
+    // thì luật đó sẽ lặng lẽ biến mất lần đầu ai đó sửa giao diện.
+    var ty_le = tk.win_rate === null || tk.win_rate === undefined
+      ? '<span class="chua-du">Chưa đủ mẫu để nói tỷ lệ: <b>n=' + tk.n + '</b>/' +
+        tk.min_n + ' — con số trên mẫu bé là nhiễu, không phải kết luận</span>'
+      : '<span class="ty-le">Tỷ lệ thắng <b>' + tk.win_rate + '%</b> ' +
+        '<span class="ago">(n=' + tk.n + ')</span></span>';
+
+    var r = tk.avg_r === null || tk.avg_r === undefined ? '' :
+      '<span class="ty-le">R trung bình <b>' + (tk.avg_r > 0 ? '+' : '') + tk.avg_r +
+      '</b> <span class="ago">(n=' + tk.n_r + ')</span></span>';
+
+    return '<div class="stat-row">' +
+      (ten ? '<span class="sym">' + esc(ten) + '</span>' : '<span class="sym tong">TỔNG</span>') +
+      ty_le + r +
+      '<span class="chips">' +
+        chip('win') + chip('loss') + chip('expired') +
+        chip('superseded') + chip('open') + chip('skipped') +
+      '</span></div>';
+  }
+
+  function renderStats(tk) {
+    var host = $('stats-body');
+    if (!host || !tk || !tk.overall) return;
+    var html = khoi(tk.overall, null);
+    Object.keys(tk.by_symbol || {}).forEach(function (sym) {
+      html += khoi(tk.by_symbol[sym], sym);
+    });
+    html += '<div class="stat-note">Thắng = chạm TP trước SL · hết hạn sau ' +
+      tk.expiry_days + ' ngày · dò bằng nến 1H · R:R 1:' + tk.rr +
+      ' · <b>hết hạn tính vào mẫu số</b>, đổi hướng thì không</div>';
+    host.innerHTML = html;
+  }
+
+  function tailStats() {
+    fetch('/api/signals/stats', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (d) renderStats(d); })
+      .catch(function () { /* thống kê hỏng không được làm sập cả trang */ });
+  }
+
   function dongTinHieu(e, i, moi) {
     var tre = '';
     if (e.first_seen_at && e.first_seen_at !== e.at) {
@@ -63,6 +131,7 @@
         '<span class="tag ' + slug(e.to) + '">' + esc(e.to || '—') + '</span>' +
         (e.telegram_ok === false
           ? '<span class="warn">⚠ Telegram lỗi</span>' : '') +
+        huyHieu(e.outcome) +
         '<span class="px">' + usd(e.price, 2) + '</span>' +
         '<span class="ago">' + truoc(e.at) + '</span>' +
       '</div>' +
@@ -234,9 +303,22 @@
       }
       // Tín hiệu mới chèn lên đầu nhật ký kèm nháy sáng, không cần reload
       if (d.entries && d.entries.length) {
+        d.entries.forEach(function (x) { if (!x.outcome) x.outcome = { status: 'open' }; });
         feed = d.entries.slice().reverse().concat(feed).slice(0, 20);
         renderFeed(d.entries.length);
+        tailStats();
       }
+    });
+
+    es.addEventListener('outcome', function (e) {
+      var d = JSON.parse(e.data);
+      // Gắn kết quả vào đúng dòng đang hiện, khỏi tải lại cả nhật ký
+      (d.settled || []).forEach(function (r) {
+        feed.forEach(function (x) { if ((x.id || (x.symbol + '@' + x.at)) === r.id) x.outcome = r; });
+      });
+      renderFeed();
+      tailStats();
+      state.status.last_score_at = d.at;
     });
 
     es.addEventListener('report', function (e) {
@@ -258,6 +340,7 @@
   renderSymbols();
   renderStatus();
   tailFeed();
+  tailStats();
   state.symbols.forEach(function (s) { lastPrice[s.symbol] = s.price; });
   connect();
   setInterval(tickCountdown, 1000);

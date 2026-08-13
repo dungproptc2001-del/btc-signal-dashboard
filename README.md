@@ -23,12 +23,13 @@ Người lạ mở link sẽ thấy trang xin quyền, không thấy dữ liệu
 
 ---
 
-Một process lo cả ba việc:
+Một process lo cả bốn việc:
 
 | Nhịp | Chu kỳ | Việc |
 |---|---|---|
 | **Giá** | 30 giây | Đẩy giá 3 mã xuống trang qua SSE, không cần reload |
 | **Tín hiệu** | 15 phút | Quét 4 khung, chỉ báo khi confluence **đổi** và giữ được 2 lần quét |
+| **Chấm điểm** | 30 phút | Đối chiếu tín hiệu cũ với giá thật: chạm TP trước hay SL trước |
 | **Báo cáo** | 4 tiếng | Dựng file HTML đầy đủ biểu đồ + gửi tin tổng hợp đa khung |
 
 ---
@@ -59,7 +60,7 @@ vẫn sinh bình thường.
 ## Chạy web server
 
 ```powershell
-python -m apps.server                    # mở cả ra internet qua Cloudflare Tunnel
+python -m apps.server                    # mở cả ra internet qua Tailscale Funnel
 python -m apps.server --no-tunnel        # chỉ chạy trong máy / LAN
 python -m apps.server --allow-sleep      # không giữ máy thức
 ```
@@ -101,7 +102,7 @@ mặc định **chỉ chạy khi cắm điện**, máy dùng pin là task fail l
 | `/off` `/on` | ✓ | ✓ | chỉ khi `--sleep-on-off` | **✓ luôn luôn** |
 | `/stop` (hỏi lại bằng nút) | ✓ | ✓ | ✓ | ✗ |
 
-`/off` **không giết tiến trình** — nó đóng tunnel và dừng ba nhịp nền, nhưng uvicorn vẫn
+`/off` **không giết tiến trình** — nó đóng tunnel và dừng bốn nhịp nền, nhưng uvicorn vẫn
 chạy và bot vẫn nghe. Đó là điểm mấu chốt: bot sống *bên trong* server, giết tiến trình
 là giết luôn tai nghe, không còn ai đọc `/on` để bật lại.
 
@@ -203,6 +204,8 @@ dùng chúng cấp quyền.
 ```powershell
 python -m apps.report --no-browser       # chỉ sinh báo cáo HTML + Telegram
 python -m apps.monitor                   # chỉ vòng quét tín hiệu
+python -m apps.score                     # chấm điểm tín hiệu đã bắn
+python -m apps.score --kho               # xem trước, KHÔNG ghi gì
 ```
 
 Đừng chạy chúng lúc server đang chạy — hai bên sẽ ghi đè `data/last_signals.json`
@@ -221,10 +224,10 @@ btcreport/          thư viện — không có entrypoint
   web/              render báo cáo HTML: template Jinja2 + CSS + JS rời
   service/          orchestration dùng chung cho apps và server
   server/           FastAPI, dashboard, SSE, quyền truy cập, bot, keepalive, tunnel
-apps/               entrypoint: server.py, report.py, monitor.py
+apps/               entrypoint: server.py, report.py, monitor.py, score.py
 scripts/            .bat + setup_tasks.ps1
 tests/              pytest + fixtures đóng băng
-data/               runtime: state, pid, log, access.json, signals.jsonl
+data/               runtime: state, pid, log, access.json, signals.jsonl, outcomes.jsonl
 output/             btc_report.html
 docs/               ARCHITECTURE.md, structure.html, plan/, spec/
 ```
@@ -262,6 +265,43 @@ cái đó chỉ chủ nhà.
 > Nhật ký bắt đầu từ lúc bật tính năng, **không có lịch sử cũ** — trước đó dữ liệu chưa
 > từng được lưu. Và với những mã đang dở một chu kỳ chờ lúc nâng cấp, bản ghi đầu tiên sẽ
 > có `first_seen_at` bằng `at`; từ chu kỳ sau là đúng.
+
+---
+
+## Chấm điểm tín hiệu
+
+Cứ 30 phút, server lấy nến 1H sau lúc bắn từng tín hiệu và xem **chạm TP trước hay SL
+trước**. Kết quả hiện trên trang chủ, mục *Chấm điểm tín hiệu*, và bám thành huy hiệu
+ngay trên từng dòng nhật ký.
+
+| Trạng thái | Nghĩa | Vào tỷ lệ thắng? |
+|---|---|---|
+| ✓ Thắng | Chạm TP trước SL | ✅ `+2R` |
+| ✗ Thua | Chạm SL trước TP | ✅ `−1R` |
+| ⌛ Hết hạn | 7 ngày chưa chạm gì | ✅ **có**, kèm R thật |
+| ↺ Đổi hướng | Bị tín hiệu ngược chiều đóng sớm | ❌ nhưng R vẫn tính |
+| – Bỏ qua | Không có hướng hoặc không có mức | ❌ |
+| ● Đang chạy | Chưa ngã ngũ | ❌ |
+
+Kết quả đi ra `data/outcomes.jsonl` **riêng**, chỉ ghi những gì đã ngã ngũ. Muốn chấm
+lại theo quy tắc khác thì **xoá file đó** — `signals.jsonl` là bất biến, không suy suyển.
+
+### Ba điều phải biết trước khi tin vào con số
+
+**Đây không phải backtest.** Nó đo tiến về phía trước, trên đúng những tín hiệu đã thật
+sự bắn xuống Telegram. Không hồi tố được — và đó là điểm mạnh, vì không có chỗ nào để
+chỉnh tham số cho khớp quá khứ.
+
+**Tỷ lệ bị ẩn khi `n < 20`,** chỉ hiện số đếm thô. 3 mã cho khoảng 10–30 tín hiệu/tháng;
+win rate trên `n = 12` là nhiễu chứ không phải kết luận, và một con số thuyết phục sai
+còn tệ hơn không có con số nào. Khi hiện, nó **luôn kèm số mẫu**: `62% (n=23)`.
+
+**Hết hạn nằm trong mẫu số.** Vứt nó đi là cách phổ biến nhất khiến loại thống kê này
+nói dối — tín hiệu không đi đâu cả vẫn là tín hiệu sai.
+
+> Từ đợt này, **SL/TP tính theo hướng confluence** thay vì theo verdict khung 4H. Đổi
+> hành vi thật: Telegram sẽ kèm mức cho cả `LONG BIAS` / `SHORT BIAS`. Lý do và số liệu
+> đo được ở [spec](docs/spec/signal-outcome-spec.md).
 
 ---
 
