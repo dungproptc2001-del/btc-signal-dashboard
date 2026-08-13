@@ -226,6 +226,29 @@
     lastPrice[symbol] = value;
   }
 
+  // ── Tuổi dữ liệu ───────────────────────────────────────────────────────────
+  // Đếm bằng SỐ GIÂY, tuyệt đối không parse `last_scan_at`. Mốc đó server ghi bằng
+  // giờ địa phương KHÔNG kèm offset, nên new Date() ở trình duyệt múi giờ khác lệch
+  // hàng tiếng — băng đỏ sẽ bật vĩnh viễn dù hệ thống hoàn toàn khoẻ. Khoảng cách
+  // thì không có múi giờ nào để sai.
+  var ageBase = null, ageAt = 0;
+
+  function markAge(seconds) {
+    ageBase = (seconds === null || seconds === undefined) ? null : seconds;
+    ageAt   = Date.now();
+  }
+
+  function scanAge() {
+    if (ageBase === null) return null;
+    return ageBase + Math.round((Date.now() - ageAt) / 1000);
+  }
+
+  function doDai(s) {
+    var g = Math.floor(s / 3600), p = Math.round((s % 3600) / 60);
+    if (g <= 0) return p + ' phút';
+    return g + ' giờ' + (p ? ' ' + p + ' phút' : '');
+  }
+
   function renderStatus() {
     var s = state.status || {};
     $('st-scan').textContent = s.last_scan_at ? s.last_scan_at.replace('T', ' ') : '—';
@@ -241,12 +264,24 @@
   }
 
   function tickCountdown() {
-    var s = state.status || {};
-    if (!s.last_scan_at || !s.scan_interval) { $('st-next').textContent = '—'; return; }
-    var next = new Date(s.last_scan_at).getTime() + s.scan_interval * 1000;
-    var left = Math.max(0, Math.round((next - Date.now()) / 1000));
-    var m = Math.floor(left / 60), ss = left % 60;
-    $('st-next').textContent = m + 'm ' + (ss < 10 ? '0' : '') + ss + 's';
+    var s = state.status || {}, age = scanAge();
+
+    if (age === null || !s.scan_interval) {
+      $('st-next').textContent = '—';
+    } else {
+      var left = Math.max(0, s.scan_interval - age);
+      var m = Math.floor(left / 60), ss = left % 60;
+      $('st-next').textContent = m + 'm ' + (ss < 10 ? '0' : '') + ss + 's';
+    }
+
+    var b = $('stale-banner');
+    if (!b) return;
+    // Ngưỡng lấy của server chứ không tự đặt ở đây. Nghỉ và tạm dừng là chủ nhà chủ
+    // động, không phải hỏng — báo động lúc đó là tự tạo báo động giả cho chính mình.
+    var cu = age !== null && s.stale_after && age > s.stale_after
+             && !s.paused && !s.standby;
+    b.style.display = cu ? 'block' : 'none';
+    if (cu) $('stale-age').textContent = doDai(age);
   }
 
   function setLive(on) {
@@ -263,6 +298,7 @@
 
     es.addEventListener('hello', function (e) {
       state = JSON.parse(e.data);
+      markAge(state.status ? state.status.scan_age_seconds : null);
       renderSymbols(); renderStatus(); setLive(true);
       state.symbols.forEach(function (s) { lastPrice[s.symbol] = s.price; });
     });
@@ -296,6 +332,7 @@
       var d = JSON.parse(e.data);
       state.symbols = d.symbols;
       state.status.last_scan_at = d.at;
+      markAge(0);                          // vừa quét xong, tuổi về không
       renderSymbols(); renderStatus();
       if (d.alerts && d.alerts.length) {
         $('st-alert').textContent = '⚡ ' +
@@ -337,6 +374,7 @@
     es.onopen = function () { setLive(true); };
   }
 
+  markAge(state.status ? state.status.scan_age_seconds : null);
   renderSymbols();
   renderStatus();
   tailFeed();

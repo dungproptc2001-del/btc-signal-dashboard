@@ -95,6 +95,14 @@ SLEEP_ON_OFF     = os.environ.get("SLEEP_ON_OFF", "").strip().lower() in ("1", "
 PRICE_INTERVAL   = 30           # giây – nhịp cập nhật giá cho dashboard
 REPORT_INTERVAL  = 4 * 60 * 60  # giây – nhịp dựng lại báo cáo BTC
 
+# ── NHỊP TIM: BIẾT KHI HỆ THỐNG CHẾT ─────────────────────────────────────────
+# Quá ngần này nhịp quét mà không quét được thì coi là "số liệu đã cũ": băng đỏ trên
+# dashboard, và người canh bên ngoài báo động. Ba nhịp chứ không phải một – lỡ một
+# lượt là chuyện thường (Binance nghẽn, wifi chập), ba lượt liên tiếp mới là có chuyện.
+STALE_AFTER_SCANS   = 3
+STALE_AFTER         = STALE_AFTER_SCANS * SCAN_INTERVAL
+TASK_WATCH_INTERVAL = 60        # giây – nhịp soi xem task nền nào chết âm thầm
+
 # Khoá chủ nhà: mở /login?key=... để nhận cookie mà không cần duyệt qua Telegram.
 # Chưa đặt trong .env thì sinh ngẫu nhiên mỗi lần khởi động (bot sẽ nhắn link).
 OWNER_KEY = os.environ.get("OWNER_KEY") or secrets.token_urlsafe(24)

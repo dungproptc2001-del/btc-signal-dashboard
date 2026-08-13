@@ -73,7 +73,7 @@
 
 <div class="header">
   <h1>bitcoin-report · Cấu trúc code</h1>
-  <p>Web dashboard + engine phân tích BTC · 3.600 dòng Python trong 28 module · 321 test</p>
+  <p>Web dashboard + engine phân tích BTC · 3.700 dòng Python trong 28 module · 339 test</p>
 </div>
 
 <div class="wrap">
@@ -172,7 +172,7 @@
 
 <!-- ─────────────── BỐN NHỊP CỦA SERVER ─────────────── -->
 <section>
-  <h2>Bốn nhịp chạy nền của server</h2>
+  <h2>Bốn nhịp chạy nền của server, cộng một người canh</h2>
   <div class="grid2">
     <div class="card">
       <h3 style="margin-top:0;color:var(--amber)">Một process, bốn chu kỳ</h3>
@@ -180,17 +180,19 @@
   ↓
 keepalive.hold()      giữ máy thức
 tunnel.start()        → https://ten-may.tailXXXX.ts.net  (cố định)
-scheduler.start()     4 task asyncio
+scheduler.start()     5 task asyncio
 bot.poll_loop()       long-poll Telegram
 uvicorn.serve()
   ↓
 30 giây → ticker × 3   → publish("price")
 15 phút → watch.scan   → Telegram + SSE
 30 phút → outcome.eval → outcomes.jsonl + SSE
-4 tiếng → report.build → file + Telegram</div>
+4 tiếng → report.build → file + Telegram
+60 giây → revive_dead  → dựng lại nhịp chết</div>
       <p class="note">
         Mọi call chặn đẩy qua threadpool. Mỗi vòng bọc try/except riêng — một lỗi
-        không giết cả nhịp.
+        không giết cả nhịp. Nhịp <b>canh</b> lo trường hợp còn lại: nhịp nào vẫn
+        chết được thì dựng lại và nhắn Telegram.
       </p>
     </div>
     <div class="card">
@@ -451,7 +453,7 @@ Duyệt → cookie 7 ngày, trang khách tự vào dashboard</div>
             <td><code>build_report()</code> → <code>(html, message, ctx)</code>. Dùng chung cho <code>apps/report.py</code> và server.</td><td class="n">46</td></tr>
 
         <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/app.py</td>
-            <td>FastAPI: route, middleware gác cửa, SSE, luồng xin quyền. Nhận diện chủ nhà hai lớp.</td><td class="n">288</td></tr>
+            <td>FastAPI: route, middleware gác cửa, SSE, luồng xin quyền. Nhận diện chủ nhà hai lớp. <code>/healthz</code> nói được ba trạng thái: sống · nghỉ · hỏng câm.</td><td class="n">313</td></tr>
         <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/access.py</td>
             <td>Phiên 7 ngày, yêu cầu truy cập, duyệt/từ chối/thu hồi, chống spam. Mọi đặc quyền qua <code>is_owner()</code>.</td><td class="n">270</td></tr>
         <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/bot.py</td>
@@ -459,17 +461,17 @@ Duyệt → cookie 7 ngày, trang khách tự vào dashboard</div>
         <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/power.py</td>
             <td><code>/off</code> <code>/on</code>: nghỉ và bật lại mà <b>không</b> giết tiến trình — giết là mất luôn tai nghe Telegram. Khoá chống gọi chồng.</td><td class="n">94</td></tr>
         <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/scheduler.py</td>
-            <td>Bốn nhịp nền: giá 30 giây, quét 15 phút, chấm điểm 30 phút, báo cáo 4 tiếng. Call chặn đẩy qua threadpool.</td><td class="n">213</td></tr>
+            <td>Bốn nhịp nền: giá 30 giây, quét 15 phút, chấm điểm 30 phút, báo cáo 4 tiếng — cộng nhịp <b>canh</b> 60 giây dựng lại nhịp nào chết âm thầm.</td><td class="n">280</td></tr>
         <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/state.py</td>
-            <td>Cache RAM + kênh SSE. <code>public()</code> là cửa duy nhất dữ liệu ra web.</td><td class="n">137</td></tr>
+            <td>Cache RAM + kênh SSE. <code>public()</code> là cửa duy nhất dữ liệu ra web. Giữ luật <code>stale</code>: quá 3 nhịp quét thì số liệu bị coi là cũ.</td><td class="n">174</td></tr>
         <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/tunnel.py</td>
             <td>Mở server ra internet. <code>tailscale</code> (URL cố định) hoặc <code>cloudflare</code> (URL đổi mỗi lần chạy). Tunnel hỏng không được làm sập server.</td><td class="n">210</td></tr>
         <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/keepalive.py</td>
             <td><code>SetThreadExecutionState</code> — giữ máy thức đúng lúc server chạy, không sửa power plan.</td><td class="n">73</td></tr>
         <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/static/dashboard.js</td>
-            <td>Nhận SSE, nhấp nháy giá khi đổi, đếm ngược lần quét, tự nối lại khi đứt. Tỷ lệ thắng do <b>server</b> quyết định có hiện hay không, JS không tự tính lấy.</td><td class="n">348</td></tr>
+            <td>Nhận SSE, nhấp nháy giá khi đổi, đếm ngược lần quét, tự nối lại khi đứt. Tỷ lệ thắng do <b>server</b> quyết định có hiện hay không. Tuổi dữ liệu đếm bằng <b>số giây</b>, không parse mốc — parse là khách khác múi giờ thấy báo động giả.</td><td class="n">386</td></tr>
         <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/static/dashboard.css</td>
-            <td>Kiểu dáng dashboard + trang xin quyền.</td><td class="n">182</td></tr>
+            <td>Kiểu dáng dashboard + trang xin quyền. Băng đỏ (hỏng) khác băng vàng (chủ động nghỉ).</td><td class="n">189</td></tr>
         <tr><td><span class="tag t-srv">server</span></td><td class="mod">server/templates/*.html</td>
             <td><code>dashboard.html</code> · <code>request_access.html</code> (form + poll trạng thái).</td><td class="n">179</td></tr>
 
@@ -555,6 +557,7 @@ save_state()             os.replace atomic</div>
         <tr><td class="mod">test_bot.py</td><td>Lệnh điều khiển, xác nhận <code>/stop</code> bằng nút, chat lạ bị chặn</td><td class="n">119</td></tr>
         <tr><td class="mod">test_access.py</td><td>Hết hạn, thu hồi, chống spam, và <b>chat_id lạ không duyệt được</b></td><td class="n">250</td></tr>
         <tr><td class="mod">test_api.py</td><td>401 khi chưa có quyền, không rò rỉ secret, <b>không giả mạo được chủ nhà</b>, CSS/JS nhúng <b>không bị autoescape</b></td><td class="n">432</td></tr>
+        <tr><td class="mod">test_heartbeat.py</td><td><code>stale</code> bật đúng lúc và <b>không</b> bật khi chủ động <code>/off</code>, nhịp nền chết được dựng lại còn nhịp bị huỷ thì để yên</td><td class="n">262</td></tr>
       </tbody>
     </table>
     <p class="note">

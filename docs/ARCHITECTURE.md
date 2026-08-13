@@ -154,7 +154,7 @@ có hẳn một test nổ nếu ai đó lỡ gọi `send_telegram` từ trong đ
 |---|---|
 | `app.py` | FastAPI: route, middleware gác cửa, SSE, luồng xin quyền. |
 | `state.py` | Cache RAM + kênh phát SSE. Mở trang không kích hoạt fetch. |
-| `scheduler.py` | Bốn nhịp nền: giá 30 giây, quét 15 phút, chấm điểm 30 phút, báo cáo 4 tiếng. |
+| `scheduler.py` | Bốn nhịp nền: giá 30 giây, quét 15 phút, chấm điểm 30 phút, báo cáo 4 tiếng — cộng nhịp **canh** 60 giây dựng lại nhịp nào chết âm thầm. |
 | `access.py` | Phiên, yêu cầu truy cập, duyệt/từ chối/thu hồi, chống spam. |
 | `bot.py` | Long-poll Telegram: nút Duyệt/Từ chối + lệnh điều khiển. |
 | `keepalive.py` | Giữ máy không ngủ trong lúc server chạy. |
@@ -211,14 +211,14 @@ với mỗi mã trong SYMBOLS:
 save_state()                       ghi atomic qua os.replace
 ```
 
-### Server (một process, bốn nhịp)
+### Server (một process, bốn nhịp + một người canh)
 
 ```
 apps/server.py
   ↓
 keepalive.hold()            giữ máy thức — không thì 5 phút nữa web sập
 tunnel.start()              → https://ten-may.tailXXXX.ts.net   (cố định)
-scheduler.start()           4 task asyncio, mọi call chặn đẩy qua threadpool
+scheduler.start()           5 task asyncio, mọi call chặn đẩy qua threadpool
 bot.poll_loop()             long-poll getUpdates
 uvicorn.serve()
   ↓
@@ -226,6 +226,7 @@ uvicorn.serve()
      15 phút → service.watch.scan    → Telegram + STATE.publish("signal")
      30 phút → service.outcome.eval  → outcomes.jsonl + STATE.publish("outcome")
      4 tiếng → service.report.build  → file + Telegram + STATE.publish("report")
+     60 giây → revive_dead()         → dựng lại nhịp chết + Telegram
 ```
 
 Trình duyệt nối `/events` (SSE) và nhận đẩy, không polling. Mất kết nối thì tự nối
@@ -255,6 +256,34 @@ là bịa ra thắng/thua từ quá khứ, mà bịa theo hướng nào thì tu�
 loại thống kê này nói dối. Đi kèm: `win_rate` là `None` khi `n < 20`, và **server**
 quyết định điều đó chứ không phải frontend — ẩn tỷ lệ lúc mẫu bé là một luật, để ở
 giao diện thì nó sẽ lặng lẽ biến mất lần đầu ai đó sửa CSS.
+
+---
+
+## Biết khi hệ thống chết
+
+Im lặng có hai nghĩa — *thị trường không có gì đáng báo* và *máy đã chết* — và trước đợt
+này chúng trông y hệt nhau. Chi tiết ở [spec](spec/heartbeat-spec.md); bốn chỗ đáng nhớ:
+
+**Nghịch lý quyết định cả kiến trúc:** thứ chạy trên máy không thể báo cho ông biết khi
+máy tắt. Nên lớp trong máy (`/healthz` + băng cảnh báo + tự hồi sinh nhịp) chỉ lo trường
+hợp *server còn sống mà đã hỏng*, còn `.github/workflows/watchdog.yml` — chạy trên hạ
+tầng GitHub — mới là lớp lo trường hợp *máy tắt hẳn*. Hai lớp không thay được nhau.
+
+**`/healthz` phải nói ba trạng thái, không phải hai.** `stale: true` nghĩa là uvicorn còn
+trả 200 mà vòng quét đã chết. Đây là kiểu hỏng câm mà mọi dịch vụ ping thương mại đều báo
+"khoẻ", vì chúng chỉ nhìn mã HTTP. `standby: true` (chủ nhà `/off`) thì ngược lại: phải
+được coi là sống, không thì mỗi lần chủ động cho nghỉ là một báo động giả.
+
+**Ngưỡng nằm ở server, giao diện chỉ đếm tiếp** — cùng luật với `win_rate`. Và giao diện
+đếm bằng **số giây** (`scan_age_seconds`) chứ không parse `last_scan_at`: mốc đó ghi bằng
+`datetime.now()`, giờ địa phương không kèm offset, nên `new Date()` ở trình duyệt múi giờ
+khác lệch hàng tiếng — khách nước ngoài sẽ thấy băng đỏ vĩnh viễn dù hệ thống hoàn toàn
+khoẻ. Có test tĩnh canh chuyện này (`test_js_khong_parse_moc_quet_...`).
+
+**Báo động giả là thứ giết hệ thống cảnh báo**, nên phải hỏng 3 lượt liên tiếp mới mở
+issue, và chỉ mở một cái cho tới khi sống lại. Bộ đếm không lưu ở đâu cả — kết luận của
+các lượt chạy trước *chính là* trạng thái, hỏi qua API là ra. Không thêm file, không thêm
+secret, không thêm thứ để hỏng.
 
 ---
 
@@ -373,19 +402,24 @@ Máy dùng S0 Modern Standby, ngủ sau 5 phút. `SetThreadExecutionState` chỉ
 
 ## Bộ test
 
-259 test chạy trên fixtures đóng băng — không mạng, không phụ thuộc giá.
+339 test chạy trên fixtures đóng băng — không mạng, không phụ thuộc giá.
 
-| File | Kiểm |
-|---|---|
-| `test_indicators.py` | Công thức đúng trên chuỗi tính tay + khớp golden trên dữ liệu thật |
-| `test_signals.py` | Từng thành phần điểm, ranh giới verdict, 9 nhánh confluence |
-| `test_levels.py` | Pivot, hướng SL/TP, NEUTRAL không đề xuất entry |
-| `test_context.py` | Context khớp golden + **không rò rỉ HTML/màu** |
-| `test_messages.py` | Text Telegram khớp golden **byte-for-byte** |
-| `test_render.py` | Render đủ thành phần, không sót cú pháp Jinja |
-| `test_watch.py` | Debounce (lật giả → 0 alert), đếm lỗi fetch, và **scan không tự gửi Telegram** |
-| `test_access.py` | Hết hạn, thu hồi, chống spam, và **chat_id lạ không duyệt được** |
-| `test_api.py` | 401 khi chưa có quyền, không rò rỉ secret, **không giả mạo được chủ nhà** |
+| File | Số | Kiểm |
+|---|---|---|
+| `test_api.py` | 61 | 401 khi chưa có quyền, không rò rỉ secret, **không giả mạo được chủ nhà** |
+| `test_outcome.py` | 46 | Chạm TP/SL, nến trước lúc bắn bị loại, `expired` nằm trong mẫu số |
+| `test_access.py` | 37 | Hết hạn, thu hồi, chống spam, và **chat_id lạ không duyệt được** |
+| `test_signals.py` | 28 | Từng thành phần điểm, ranh giới verdict, 9 nhánh confluence |
+| `test_watch.py` | 24 | Debounce (lật giả → 0 alert), đếm lỗi fetch, **scan không tự gửi Telegram** |
+| `test_journal.py` | 21 | Ghi nối, lọc loại alert, khoá `id` suy được từ bản ghi cũ |
+| `test_indicators.py` | 21 | Công thức đúng trên chuỗi tính tay + khớp golden trên dữ liệu thật |
+| `test_context.py` | 19 | Context khớp golden + **không rò rỉ HTML/màu** |
+| `test_heartbeat.py` | 18 | `stale` bật đúng lúc, `/off` không bị coi là chết, nhịp chết được dựng lại |
+| `test_power.py` | 15 | `/off` `/on` không giết tiến trình, khoá chống gọi chồng |
+| `test_bot.py` | 15 | Lệnh điều khiển qua cửa kiểm `is_owner` |
+| `test_render.py` | 14 | Render đủ thành phần, không sót cú pháp Jinja |
+| `test_levels.py` | 11 | Pivot, hướng SL/TP, NEUTRAL không đề xuất entry |
+| `test_messages.py` | 9 | Text Telegram khớp golden **byte-for-byte** |
 
 `tests/fixtures/` giữ phản hồi Binance thật đã đóng băng. `tests/golden/` giữ kết quả
 mốc. Sinh lại bằng `capture_fixtures.py` và `capture_golden.py` — chỉ chạy khi cố ý

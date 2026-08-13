@@ -1,6 +1,6 @@
 # Bàn giao — trạng thái dự án
 
-Cập nhật 12/08/2026. Đọc file này trước khi làm tiếp.
+Cập nhật 13/08/2026. Đọc file này trước khi làm tiếp.
 
 Tài liệu sống: [README](../README.md) · [ARCHITECTURE](ARCHITECTURE.md) ·
 [structure.html](structure.html). Còn `plan/` và `spec/` là **hồ sơ theo từng đợt**,
@@ -20,19 +20,20 @@ dựng báo cáo 4 tiếng. Tự host trên laptop, mở ra internet, người l
 | Trong máy | `http://localhost:8000` — vào thẳng, không cần đăng nhập |
 | Tự bật | Task Scheduler `BTC Web Server`, trigger AtLogOn |
 | Desktop | 5 shortcut: Bật · Tắt · Trạng thái · Dashboard · Link công khai |
-| Test | 259, chạy offline trên fixture đóng băng |
+| Test | 339, chạy offline trên fixture đóng băng |
 | Ranh giới 6 tầng | 0 vi phạm (quét AST) |
+| Người canh | GitHub Actions gọi `/healthz` mỗi giờ, hỏng 3 lượt thì mở issue |
 
 Nhánh:
 
 ```
-main                          4035785   ← Tailscale funnel
-feat/telegram-power-control   0bb12f3   ← /off /on, ĐÃ push, CHƯA gộp vào main
+main             eb723c1   ← đã có chấm điểm tín hiệu
+feat/heartbeat             ← biết khi hệ thống chết
 ```
 
 ---
 
-## Ba đợt đã làm
+## Sáu đợt đã làm
 
 ### 1. Refactor — tách tầng
 
@@ -87,8 +88,9 @@ của nhau. Xoá file đó là vòng quét coi như chạy lần đầu, bắn l
 
 | Việc | Ghi chú |
 |---|---|
-| Gộp `feat/telegram-power-control` vào `main` | Đã push, chưa gộp |
+| Ưu tiên 3: watchdog tự khởi động lại sau crash | Chưa có plan. Bài toán *chữa*, khác với đợt 5 lo *biết* |
 | Chưa đo chu kỳ ngủ/thức thật của Windows | Long-poll có sống sót không. Chỉ ảnh hưởng cờ `--sleep-on-off`, không ảnh hưởng mặc định |
+| `st-price` hiện giờ UTC chứ không phải giờ VN | `dashboard.js` gán `new Date().toISOString()` rồi cắt phần giờ. Sai cỡ 7 tiếng, chỉ ở dòng "Giá cập nhật". Lỗi có sẵn, chưa sửa vì ngoài phạm vi đợt 5 |
 | Task cũ `BTC 4H Report` | Cần quyền admin để dọn: `schtasks /delete /tn "BTC 4H Report" /f`. Nó trỏ vào file đã xoá nên chỉ fail vô hại |
 | `OWNER_KEY` chưa cố định trong `.env` | Đặt cố định thì có bookmark vĩnh viễn tự đăng nhập. Đổi lại là mật khẩu nằm trong URL |
 | Report và monitor cho confluence khác nhau | Report lấy 26 nến tuần, monitor lấy 52 → verdict khung 1W lệch. Có từ trước refactor, chưa thống nhất |
@@ -99,6 +101,24 @@ Tín hiệu mua/bán bắn xuống Telegram giờ cũng được ghi vào `data/
 trên trang chủ, kèm giá lúc bắn và mốc thị trường thật sự đổi.
 
 Hồ sơ: [plan](plan/signal-feed-plan.md) · [spec](spec/signal-feed-spec.md)
+
+### 5. Chấm điểm tín hiệu
+
+Hệ thống bắn tín hiệu từ đầu mà chưa bao giờ tự chấm điểm. Giờ mỗi tín hiệu được đối
+chiếu với giá thật: chạm TP trước hay SL trước, quy ra R. Kèm một đổi hành vi thật —
+**SL/TP tính theo hướng confluence** thay vì verdict khung 4H, vì hai cái đã lệch nhau
+thật và tín hiệu `BIAS` từng đi Telegram mà không kèm mức nào.
+
+Hồ sơ: [plan](plan/signal-outcome-plan.md) · [spec](spec/signal-outcome-spec.md)
+
+### 6. Biết khi hệ thống chết
+
+Trước đợt này, "thị trường im" và "laptop đã gập" trông y hệt nhau. Giờ `/healthz` nói
+được ba trạng thái, dashboard hiện băng đỏ khi số liệu quá 45 phút, nhịp nền chết âm thầm
+thì tự dựng lại — và **GitHub Actions gọi từ bên ngoài mỗi giờ**, vì thứ chạy trên máy
+không thể báo cho ông biết khi máy tắt.
+
+Hồ sơ: [plan](plan/heartbeat-plan.md) · [spec](spec/heartbeat-spec.md)
 
 ---
 

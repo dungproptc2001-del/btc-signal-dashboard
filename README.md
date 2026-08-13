@@ -23,7 +23,7 @@ Người lạ mở link sẽ thấy trang xin quyền, không thấy dữ liệu
 
 ---
 
-Một process lo cả bốn việc:
+Một process lo cả bốn việc, cộng một nhịp canh chính bốn nhịp kia:
 
 | Nhịp | Chu kỳ | Việc |
 |---|---|---|
@@ -31,6 +31,7 @@ Một process lo cả bốn việc:
 | **Tín hiệu** | 15 phút | Quét 4 khung, chỉ báo khi confluence **đổi** và giữ được 2 lần quét |
 | **Chấm điểm** | 30 phút | Đối chiếu tín hiệu cũ với giá thật: chạm TP trước hay SL trước |
 | **Báo cáo** | 4 tiếng | Dựng file HTML đầy đủ biểu đồ + gửi tin tổng hợp đa khung |
+| **Canh** | 60 giây | Nhịp nào chết âm thầm thì dựng lại và nhắn Telegram |
 
 ---
 
@@ -230,6 +231,7 @@ tests/              pytest + fixtures đóng băng
 data/               runtime: state, pid, log, access.json, signals.jsonl, outcomes.jsonl
 output/             btc_report.html
 docs/               ARCHITECTURE.md, structure.html, plan/, spec/
+.github/workflows/  watchdog.yml — người canh chạy trên GitHub, ngoài máy này
 ```
 
 Chi tiết ranh giới từng tầng: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
@@ -305,6 +307,54 @@ nói dối — tín hiệu không đi đâu cả vẫn là tín hiệu sai.
 
 ---
 
+## Biết khi hệ thống chết
+
+Điện thoại im lặng hôm nay nghĩa là gì? Thị trường không có gì đáng báo, hay laptop đã
+gập từ 3 giờ sáng? **Hai thứ này trông y hệt nhau** nếu không ai đo — và đó là kiểu hỏng
+nguy hiểm nhất, vì nó hỏng đúng lúc người ta tin tưởng nhất.
+
+Nghịch lý: *thứ chạy trên máy không thể báo cho ông biết khi máy tắt.* Nên phải chia hai
+tầng, và tầng ngoài mới là tầng thật sự giải quyết.
+
+**Trong máy** — `/healthz` nói được ba trạng thái, không phải hai:
+
+| Trả về | Nghĩa |
+|---|---|
+| `stale: false` | Sống, vòng quét chạy đúng nhịp |
+| `standby: true` | Chủ nhà `/off` — chủ động cho nghỉ, **không phải hỏng** |
+| `stale: true` | **Hỏng câm**: uvicorn còn sống mà vòng quét đã chết |
+
+Trạng thái thứ ba là lý do tồn tại của cả tính năng. Trang vẫn trả 200, thẻ giá vẫn đó,
+số liệu là của tuần trước — mọi dịch vụ ping thương mại đều báo "khoẻ" cho nó.
+
+Quá **45 phút** (3 nhịp quét) không quét được thì dashboard hiện **băng đỏ** ghi rõ dừng
+bao lâu rồi. Ngưỡng do server quyết, giao diện chỉ đếm tiếp — và đếm bằng số giây chứ
+không parse mốc thời gian, nếu không khách ở múi giờ khác sẽ thấy băng đỏ vĩnh viễn.
+
+Nhịp **canh** 60 giây soi 4 nhịp kia: cái nào chết âm thầm thì dựng lại và nhắn Telegram.
+
+**Ngoài máy** — `.github/workflows/watchdog.yml` gọi `/healthz` mỗi giờ từ GitHub. Hỏng
+**3 lượt liên tiếp** mới mở issue (báo động giả dùng vài hôm là người ta tắt thông báo,
+rồi tưởng mình vẫn đang được canh). Sống lại thì tự bình luận và đóng issue.
+
+Cần đặt một lần:
+
+```powershell
+gh variable set HEALTH_URL --body "https://laptop-28esvi13.tail5ac7f7.ts.net"
+gh workflow run watchdog.yml          # chạy thử ngay, không đợi giờ
+```
+
+Không cần secret nào — `GITHUB_TOKEN` có sẵn. Đó cũng là lý do chọn mở issue thay vì
+nhắn Telegram: **bot token vẫn nằm đúng một chỗ là máy này.**
+
+> **Cạm bẫy phải nhớ:** GitHub tự tắt workflow theo lịch nếu repo im lặng 60 ngày. Nó
+> tắt lặng lẽ, không báo ai — đúng cái bẫy "hệ thống cảnh báo thành thứ cần được cảnh
+> báo". Repo đang được commit đều nên chưa chạm ngưỡng, nhưng phải biết mà canh.
+
+Chi tiết: [plan](docs/plan/heartbeat-plan.md) · [spec](docs/spec/heartbeat-spec.md).
+
+---
+
 ## Tín hiệu hoạt động thế nào
 
 Mỗi khung thời gian được chấm điểm trong khoảng **±7**:
@@ -345,7 +395,7 @@ refactor, chưa thống nhất.
 
 ```powershell
 pip install -r requirements-dev.txt
-python -m pytest tests -q                # 259 test
+python -m pytest tests -q                # 339 test
 ```
 
 Test chạy trên **fixtures đóng băng** trong `tests/fixtures/` — không gọi mạng, không

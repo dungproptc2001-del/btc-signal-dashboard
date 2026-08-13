@@ -1,4 +1,4 @@
-"""Bốn nhịp chạy nền của server.
+"""Bốn nhịp chạy nền của server, cộng một người canh chúng.
 
 | Nhịp    | Chu kỳ   | Việc                                                    |
 |---------|----------|---------------------------------------------------------|
@@ -6,6 +6,7 @@
 | scan    | 15 phút  | Quét đủ 4 khung, debounce, gửi Telegram nếu đổi          |
 | score   | 30 phút  | Chấm tín hiệu cũ: chạm TP trước hay SL trước             |
 | report  | 4 tiếng  | Dựng lại báo cáo BTC, ghi file, gửi Telegram             |
+| watch   | 60 giây  | Nhịp nào chết âm thầm thì dựng lại và báo Telegram       |
 
 Mọi call chặn (requests) đẩy qua threadpool để không nghẽn event loop.
 Mỗi vòng bọc try/except riêng – một lỗi không được giết cả nhịp.
@@ -15,7 +16,8 @@ import traceback
 from datetime import datetime
 
 from ..config import (
-    OUTCOME_INTERVAL, PRICE_INTERVAL, REPORT_INTERVAL, SCAN_INTERVAL, SYMBOLS,
+    OUTCOME_INTERVAL, PRICE_INTERVAL, REPORT_INTERVAL, SCAN_INTERVAL,
+    SYMBOLS, TASK_WATCH_INTERVAL,
 )
 from ..notify.telegram import send_telegram
 from ..service import journal, outcome
@@ -181,10 +183,64 @@ async def report_loop():
         await asyncio.sleep(REPORT_INTERVAL)
 
 
+# ── NGƯỜI CANH CÁC NHỊP ───────────────────────────────────────────────────────
+_LOOPS = {
+    "giá":     price_loop,
+    "quét":    scan_loop,
+    "chấm":    score_loop,
+    "báo cáo": report_loop,
+}
+_tasks = {}     # tên nhịp -> asyncio.Task đang chạy
+
+
+async def revive_dead():
+    """Nhịp nào chết mà không phải do bị huỷ thì dựng lại. Trả tên các nhịp đã dựng.
+
+    Mỗi vòng đã bọc try/except bên trong nên phần lớn lỗi không giết được nó. Nhưng
+    một lỗi ngay tại `asyncio.sleep`, hay MemoryError, thì vẫn thoát ra được – và lúc
+    đó nhịp ấy chết VĨNH VIỄN trong khi web vẫn phục vụ bình thường, thẻ giá vẫn đó,
+    số liệu là của tuần trước. Đúng kiểu hỏng câm mà cả đợt này sinh ra để chống.
+
+    Báo Telegram cho mỗi lần dựng lại. Đây không phải cảnh báo thừa: một nhịp chết là
+    chuyện chưa từng xảy ra trong đời dự án này, nên nếu xảy ra thật thì đó là thông
+    tin đắt chứ không phải nhiễu.
+    """
+    song_lai = []
+    for ten, fn in _LOOPS.items():
+        t = _tasks.get(ten)
+        if t is None or not t.done() or t.cancelled():
+            continue                      # bị huỷ là do stop() gọi, không phải chết
+
+        loi = t.exception()
+        STATE.task_restarts += 1
+        log(f"NHỊP '{ten}' ĐÃ CHẾT: {type(loi).__name__}: {loi}\n"
+            + "".join(traceback.format_exception(type(loi), loi, loi.__traceback__)))
+        _tasks[ten] = asyncio.create_task(fn())
+        song_lai.append(ten)
+
+        await _run(send_telegram,
+                   f"⚠️ Nhịp '{ten}' vừa chết và đã được dựng lại.\n"
+                   f"Lỗi: {type(loi).__name__}: {loi}\n"
+                   f"Lần hồi sinh thứ {STATE.task_restarts} kể từ lúc server bật.")
+    return song_lai
+
+
+async def watch_loop():
+    """Vòng canh. Không bao giờ được phép thoát.
+
+    Tự nó KHÔNG hồi sinh được chính nó – đó là giới hạn thật, không giấu. Nếu vòng này
+    chết thì lớp ngoài mới bắt được: `scan_loop` chết mà không ai dựng lại sẽ làm
+    `/healthz` bật `stale`, và người canh trên GitHub báo động sau 3 lượt.
+    """
+    while True:
+        await asyncio.sleep(TASK_WATCH_INTERVAL)
+        try:
+            await revive_dead()
+        except Exception:
+            log("watch_loop lỗi:\n" + traceback.format_exc())
+
+
 # ── VÒNG ĐỜI ──────────────────────────────────────────────────────────────────
-_tasks = []
-
-
 async def start():
     """Chạy ngay một lượt mỗi nhịp rồi mới vào chu kỳ – không bắt người dùng
     đợi 4 tiếng mới có báo cáo đầu tiên.
@@ -205,18 +261,18 @@ async def start():
     except Exception as e:
         log(f"  giá lượt đầu lỗi: {e}")
 
-    _tasks.append(asyncio.create_task(price_loop()))
-    _tasks.append(asyncio.create_task(scan_loop()))
-    _tasks.append(asyncio.create_task(score_loop()))
-    _tasks.append(asyncio.create_task(report_loop()))
+    for ten, fn in _LOOPS.items():
+        _tasks[ten] = asyncio.create_task(fn())
+    _tasks["canh"] = asyncio.create_task(watch_loop())
     log(f"Scheduler chạy: giá {PRICE_INTERVAL}s · quét {SCAN_INTERVAL // 60}m "
-        f"· chấm {OUTCOME_INTERVAL // 60}m · báo cáo {REPORT_INTERVAL // 3600}h")
+        f"· chấm {OUTCOME_INTERVAL // 60}m · báo cáo {REPORT_INTERVAL // 3600}h "
+        f"· canh {TASK_WATCH_INTERVAL}s")
 
 
 async def stop():
-    for t in _tasks:
+    for t in _tasks.values():
         t.cancel()
-    for t in _tasks:
+    for t in _tasks.values():
         try:
             await t
         except (asyncio.CancelledError, Exception):

@@ -1,0 +1,141 @@
+# Người canh từ bên ngoài.
+#
+# Nghịch lý của mọi cảnh báo tự host: thứ chạy trên máy không thể báo cho ông biết khi
+# máy tắt. File này là lớp duy nhất nằm NGOÀI máy đó, nên nó là lớp duy nhất còn nói
+# được khi laptop đã gập.
+#
+# Giữ nó càng ngu càng tốt: gọi HTTP, so kết quả, hết. Không logic thị trường, không
+# trạng thái riêng, không phụ thuộc gì. Đừng để hệ thống cảnh báo thành thứ cần được
+# cảnh báo.
+name: watchdog
+
+on:
+  schedule:
+    # Mỗi giờ, lệch 17 phút để né giờ cao điểm của GitHub.
+    # 24 lần/ngày × 30 = 720 lượt/tháng. Mỗi lượt vài giây nhưng BỊ LÀM TRÒN LÊN 1 PHÚT
+    # → ~720 phút trong gói free 2000 phút của repo private. Ping 30 phút/lần sẽ là
+    # ~1440 phút (72% quota) — quá sát, không làm.
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gọi /healthz
+        id: ping
+        env:
+          HEALTH_URL: ${{ vars.HEALTH_URL }}
+        run: |
+          if [ -z "$HEALTH_URL" ]; then
+            echo "Chưa đặt repo variable HEALTH_URL. Xem docs/spec/heartbeat-spec.md."
+            exit 1
+          fi
+
+          # Thử 2 lần cách nhau 10 giây: lọc chập nhất thời mà vẫn xong dưới 1 phút.
+          # Không thử nhiều hơn — mỗi lượt chạy bị tính tròn 1 phút quota.
+          for lan in 1 2; do
+            body=$(curl -fsS --max-time 20 "$HEALTH_URL/healthz" 2>/dev/null) && break
+            echo "lần $lan: không gọi được"
+            body=""
+            if [ "$lan" = 1 ]; then sleep 10; fi
+          done
+
+          if [ -z "$body" ]; then
+            echo "ly_do=Không gọi được $HEALTH_URL/healthz (timeout hoặc mã lỗi)" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          echo "$body"
+          ok=$(echo "$body"      | jq -r '.ok')
+          standby=$(echo "$body" | jq -r '.standby // false')
+          stale=$(echo "$body"   | jq -r '.stale // false')
+          tuoi=$(echo "$body"    | jq -r '.scan_age_seconds // "?"')
+
+          # Chủ nhà chủ động /off thì người canh phải im.
+          if [ "$standby" = "true" ]; then
+            echo "standby — chủ động cho nghỉ, không báo động."
+            exit 0
+          fi
+
+          # Dòng đắt nhất của cả file: server sống mà vòng quét đã chết. Mọi dịch vụ
+          # ping thương mại đều báo "khoẻ" cho trạng thái này, vì trang vẫn trả 200.
+          if [ "$stale" = "true" ]; then
+            echo "ly_do=Server sống nhưng vòng quét đã dừng ${tuoi}s (stale=true)" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          if [ "$ok" != "true" ]; then
+            echo "ly_do=/healthz trả ok=$ok" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          echo "sống, quét cách đây ${tuoi}s"
+
+      # ── HỎNG ────────────────────────────────────────────────────────────────
+      # Đếm 3 lượt liên tiếp mà không cần lưu trạng thái ở đâu cả: kết luận của các
+      # lượt chạy trước CHÍNH LÀ trạng thái. Không thêm file, không thêm secret.
+      - name: Đủ 3 lần liên tiếp thì mở issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LY_DO: ${{ steps.ping.outputs.ly_do }}
+        run: |
+          truoc=$(gh api "repos/${{ github.repository }}/actions/workflows/watchdog.yml/runs?status=completed&per_page=2" \
+                    --jq '[.workflow_runs[].conclusion] | join(",")')
+          echo "hai lượt trước: $truoc"
+
+          hong=$(echo "$truoc" | tr ',' '\n' | grep -c '^failure$' || true)
+          if [ "$hong" -lt 2 ]; then
+            echo "Mới hỏng $((hong + 1))/3 lượt — im, để lượt sau."
+            exit 0
+          fi
+
+          # Báo MỘT LẦN cho tới khi sống lại. Không có luật này thì hỏng qua đêm là
+          # sáng ra 8 cái issue, và vài hôm sau ông tắt thông báo GitHub.
+          dang_mo=$(gh issue list --label watchdog --state open --json number --jq 'length')
+          if [ "$dang_mo" != "0" ]; then
+            echo "Đã có issue đang mở — không mở thêm."
+            exit 0
+          fi
+
+          # Ghi ra file thay vì heredoc: heredoc phải thụt về cột 0, mà cột 0 là thoát
+          # khỏi khối `run: |` và làm hỏng cả file YAML.
+          {
+            echo 'Người canh gọi `/healthz` hỏng **3 lượt liên tiếp** (mỗi lượt cách nhau 1 giờ).'
+            echo
+            echo "**Lý do lượt này:** ${LY_DO:-không rõ}"
+            echo
+            echo 'Nghĩa là một trong những chuyện sau:'
+            echo
+            echo '- Laptop đã gập / đã ngủ / mất điện'
+            echo '- Mất mạng, hoặc Tailscale Funnel đứt'
+            echo '- Tiến trình `apps.server` đã chết'
+            echo '- Server còn sống nhưng vòng quét đã dừng (`stale=true`) — kiểu hỏng câm'
+            echo
+            echo 'Issue này sẽ **tự đóng** khi server trả lời lại.'
+            echo
+            echo '<sub>Mở tự động bởi `.github/workflows/watchdog.yml`</sub>'
+          } > issue.md
+
+          gh label create watchdog --color B60205 --description "Người canh tự động" || true
+          gh issue create \
+            --title "🔴 Server không phản hồi — $(date -u '+%d/%m/%Y %H:%M UTC')" \
+            --label watchdog \
+            --body-file issue.md
+
+      # ── SỐNG LẠI ────────────────────────────────────────────────────────────
+      # Chỉ báo lúc chết là không bao giờ biết khi nào yên tâm lại được.
+      - name: Sống lại thì đóng issue
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for n in $(gh issue list --label watchdog --state open --json number --jq '.[].number'); do
+            gh issue comment "$n" --body "✅ Server trả lời lại lúc $(date -u '+%d/%m/%Y %H:%M UTC'). Tự đóng."
+            gh issue close "$n"
+          done

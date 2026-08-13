@@ -222,8 +222,33 @@ async def api_link(request: Request):
 
 @app.get("/healthz")
 async def healthz():
+    """Cửa duy nhất người canh bên ngoài nhìn vào. Công khai, không cần quyền.
+
+    Phải nói được BA trạng thái, không phải hai:
+
+      sống          – ok, không stale
+      chủ động nghỉ – standby=true, người canh phải im
+      hỏng câm      – ok=true nhưng stale=true: uvicorn còn sống mà vòng quét đã chết
+
+    Trạng thái thứ ba là lý do tồn tại của cả route này. Mọi dịch vụ ping thương mại
+    đều báo "khoẻ" cho nó, vì trang vẫn trả 200 và số liệu cũ trông y hệt số liệu sống.
+
+    KHÔNG thêm trường nào chứa dữ liệu thị trường. Route này người lạ đọc được, và có
+    test canh (`test_healthz_khong_lo_gi_nhay_cam`) – đó cũng là lý do không có
+    `last_price_at` ở đây: tên trường chứa chữ `price` là test đỏ, và test đỏ là đúng.
+    """
     s = STATE.public()["status"]
-    return {"ok": True, "uptime_seconds": s["uptime_seconds"], "paused": s["paused"]}
+    return {
+        "ok":               True,
+        "uptime_seconds":   s["uptime_seconds"],
+        "paused":           s["paused"],
+        "standby":          s["standby"],
+        "stale":            s["stale"],
+        "stale_after":      s["stale_after"],
+        "scan_age_seconds": s["scan_age_seconds"],
+        "last_scan_at":     s["last_scan_at"],
+        "task_restarts":    s["task_restarts"],
+    }
 
 
 # ── SSE ───────────────────────────────────────────────────────────────────────

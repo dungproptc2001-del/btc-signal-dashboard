@@ -78,6 +78,13 @@ a.badge:hover{border-color:var(--amber);color:var(--amber)}
                 line-height:1.6}
 .standby-banner b{color:var(--amber)}
 
+/* Đỏ chứ không vàng: standby là chủ động cho nghỉ, stale là hỏng. Hai thứ khác
+   nhau về bản chất nên không được trông giống nhau. */
+.stale-banner{background:#ef444420;border:1px solid #ef444466;border-radius:10px;
+              padding:13px 16px;margin-bottom:18px;font-size:.85rem;color:#fca5a5;
+              line-height:1.6}
+.stale-banner b{color:#f87171}
+
 /* ── Chấm điểm tín hiệu ───────────────────────────────────────────────────── */
 .stats{margin:26px 0 8px}
 #stats-body{border:1px solid var(--line);border-radius:12px;overflow:hidden;

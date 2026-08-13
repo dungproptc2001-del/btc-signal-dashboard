@@ -7,7 +7,7 @@ import asyncio
 import threading
 from datetime import datetime
 
-from ..config import PRICE_INTERVAL, SCAN_INTERVAL, SYMBOLS
+from ..config import PRICE_INTERVAL, SCAN_INTERVAL, STALE_AFTER, SYMBOLS
 
 
 class ServerState:
@@ -30,7 +30,37 @@ class ServerState:
         self.last_report_at = None
         self.last_score_at  = None
         self.scan_errors    = 0
+        self.task_restarts  = 0    # số lần một nhịp nền chết âm thầm và được dựng lại
         self._subscribers   = set()
+
+    # ── SỐNG HAY ĐÃ CHẾT ──────────────────────────────────────────────────────
+    def scan_age(self):
+        """Bao nhiêu giây kể từ lượt quét cuối. None khi chưa quét lần nào.
+
+        Trả về SỐ GIÂY chứ không phải mốc thời gian, và đó là chủ ý: `last_scan_at`
+        ghi bằng `datetime.now()` – giờ địa phương, không kèm offset – nên bất kỳ ai
+        parse nó ở múi giờ khác đều ra sai hàng tiếng. Khoảng cách thì không có múi giờ
+        nào để sai.
+        """
+        with self._lock:
+            if not self.last_scan_at:
+                return None
+            return int((datetime.now() - self.last_scan_at).total_seconds())
+
+    def is_stale(self):
+        """Vòng quét đã quá hạn chưa.
+
+        `paused` và `standby` KHÔNG tính là cũ: đó là chủ nhà chủ động cho nghỉ. Báo
+        động lúc đó là tự tạo báo động giả cho chính mình, mà báo động giả dùng vài
+        hôm là người ta tắt thông báo – rồi tưởng mình vẫn đang được canh.
+
+        Chưa quét lần nào cũng không tính: server vừa bật, chưa kịp chạy nhịp đầu.
+        """
+        with self._lock:
+            if self.paused or self.standby:
+                return False
+        tuoi = self.scan_age()
+        return tuoi is not None and tuoi > STALE_AFTER
 
     # ── SSE ───────────────────────────────────────────────────────────────────
     def subscribe(self):
@@ -126,6 +156,13 @@ class ServerState:
                     "scan_interval":   SCAN_INTERVAL,
                     "price_interval":  PRICE_INTERVAL,
                     "has_report":      self.report_html is not None,
+                    # Ngưỡng đi kèm dữ liệu, để client không phải tự đặt luật. Cùng lý
+                    # do đã ghi ở chỗ ẩn tỷ lệ thắng: luật nằm trong giao diện thì nó
+                    # biến mất lần đầu ai đó sửa giao diện.
+                    "stale":            self.is_stale(),
+                    "stale_after":      STALE_AFTER,
+                    "scan_age_seconds": self.scan_age(),
+                    "task_restarts":    self.task_restarts,
                 },
             }
 
